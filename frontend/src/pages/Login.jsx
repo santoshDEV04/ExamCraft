@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -19,12 +19,30 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem('examcraft_rem_email');
+    const rememberedPassword = localStorage.getItem('examcraft_rem_pass');
+    if (rememberedEmail) {
+      setFormData({ 
+        email: rememberedEmail, 
+        password: rememberedPassword || '' 
+      });
+      setRememberMe(true);
+    }
+  }, []);
+
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value, type, checked } = e.target;
+    if (type === 'checkbox') {
+      setRememberMe(checked);
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
     setError('');
   };
 
@@ -43,6 +61,14 @@ const Login = () => {
 
     setLoading(true);
     try {
+      if (rememberMe) {
+        localStorage.setItem('examcraft_rem_email', formData.email);
+        localStorage.setItem('examcraft_rem_pass', formData.password);
+      } else {
+        localStorage.removeItem('examcraft_rem_email');
+        localStorage.removeItem('examcraft_rem_pass');
+      }
+
       await login(formData);
       navigate('/dashboard');
     } catch (err) {
@@ -208,11 +234,13 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Remember */}
             <div className="flex items-center justify-between text-sm">
               <label className="flex items-center gap-2 text-silver-200 cursor-pointer">
                 <input
                   type="checkbox"
+                  name="rememberMe"
+                  checked={rememberMe}
+                  onChange={handleChange}
                   className="w-4 h-4 rounded border-dark-500 bg-dark-300 text-gold focus:ring-gold/30 accent-[#C9A84C]"
                 />
                 Remember me

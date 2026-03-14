@@ -45,6 +45,7 @@ const Register = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [step, setStep] = useState(1);
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -58,7 +59,12 @@ const Register = () => {
   });
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value, type, checked } = e.target;
+    if (type === 'checkbox') {
+      setRememberMe(checked);
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
     setError('');
   };
 
@@ -89,6 +95,14 @@ const Register = () => {
 
     setLoading(true);
     try {
+      if (rememberMe) {
+        localStorage.setItem('examcraft_rem_email', formData.email);
+        localStorage.setItem('examcraft_rem_pass', formData.password);
+      } else {
+        localStorage.removeItem('examcraft_rem_email');
+        localStorage.removeItem('examcraft_rem_pass');
+      }
+
       const payload = {
         ...formData,
         subjects: formData.subjects.split(',').map((s) => s.trim()).filter(Boolean),
@@ -303,6 +317,21 @@ const Register = () => {
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
+                </div>
+
+                {/* Remember Me */}
+                <div className="flex items-center gap-2 px-1">
+                  <input
+                    type="checkbox"
+                    id="reg-remember"
+                    name="rememberMe"
+                    checked={rememberMe}
+                    onChange={handleChange}
+                    className="w-4 h-4 rounded border-dark-500 bg-dark-300 text-gold focus:ring-gold/30 accent-[#C9A84C] cursor-pointer"
+                  />
+                  <label htmlFor="reg-remember" className="text-sm text-silver-200 cursor-pointer select-none">
+                    Remember me
+                  </label>
                 </div>
 
                 <motion.button

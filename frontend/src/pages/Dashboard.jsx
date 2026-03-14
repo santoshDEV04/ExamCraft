@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useSearch } from '../context/SearchContext';
 import AccuracyChart from '../charts/AccuracyChart';
 import RiskChart from '../charts/RiskChart';
 import ChartPanel, { CHART_COLORS } from '../components/ChartPanel';
@@ -26,6 +27,7 @@ import {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { searchQuery } = useSearch();
   const [greeting, setGreeting] = useState('');
 
   useEffect(() => {
@@ -70,6 +72,10 @@ const Dashboard = () => {
       color: CHART_COLORS.warning,
     },
   ];
+
+  const filteredStats = stats.filter(stat => 
+    stat.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const weakTopics = [];
   const recentActivity = [];
@@ -123,27 +129,33 @@ const Dashboard = () => {
         animate="show"
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
       >
-        {stats.map((stat, i) => {
-          const Icon = stat.icon;
-          return (
-            <motion.div key={stat.label} variants={item} className="stat-card group">
-              <div className="flex items-start justify-between mb-3">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
-                  style={{ backgroundColor: `${stat.color}15` }}
-                >
-                  <Icon size={20} style={{ color: stat.color }} />
+        {filteredStats.length > 0 ? (
+          filteredStats.map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <motion.div key={stat.label} variants={item} className="stat-card group">
+                <div className="flex items-start justify-between mb-3">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
+                    style={{ backgroundColor: `${stat.color}15` }}
+                  >
+                    <Icon size={20} style={{ color: stat.color }} />
+                  </div>
+                  <ArrowUpRight size={16} className="text-dark-700 group-hover:text-gold transition-colors" />
                 </div>
-                <ArrowUpRight size={16} className="text-dark-700 group-hover:text-gold transition-colors" />
-              </div>
-              <p className="text-2xl font-bold text-silk font-[var(--font-display)]">{stat.value}</p>
-              <p className="text-xs text-dark-700 mt-0.5">{stat.label}</p>
-              <p className="text-xs mt-2 font-medium" style={{ color: stat.color }}>
-                {stat.change}
-              </p>
-            </motion.div>
-          );
-        })}
+                <p className="text-2xl font-bold text-silk font-[var(--font-display)]">{stat.value}</p>
+                <p className="text-xs text-dark-700 mt-0.5">{stat.label}</p>
+                <p className="text-xs mt-2 font-medium" style={{ color: stat.color }}>
+                  {stat.change}
+                </p>
+              </motion.div>
+            );
+          })
+        ) : (
+          <div className="col-span-full py-8 text-center glass-card opacity-50">
+            <p className="text-sm italic text-silver-200">No matching statistics found for &quot;{searchQuery}&quot;</p>
+          </div>
+        )}
       </motion.div>
 
       {/* Quick Actions */}

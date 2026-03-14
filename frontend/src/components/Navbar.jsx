@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useSearch } from '../context/SearchContext';
 import { getInitials } from '../utils/helpers';
 import {
   Menu,
@@ -18,6 +19,7 @@ import {
 
 const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
   const { user, logout } = useAuth();
+  const { searchQuery, setSearchQuery } = useSearch();
   const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
   const [clockOpen, setClockOpen] = useState(false);
@@ -125,8 +127,19 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
             <input 
               type="text" 
               placeholder="Search everything..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-silk focus:outline-none focus:border-gold/30 focus:bg-white/[0.08] focus:ring-4 focus:ring-gold/5 transition-all w-48 lg:w-72 placeholder:text-silver-300" 
             />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 text-silver-300 hover:text-gold transition-colors"
+                aria-label="Clear Search"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           {/* Notifications */}
@@ -250,10 +263,15 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
                 autoFocus
                 type="text" 
                 placeholder="Search user, details, everything..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-9 pr-10 text-sm text-silk focus:outline-none focus:border-gold/50 focus:bg-white/10 transition-all placeholder:text-silver-200" 
               />
               <button 
-                onClick={() => setSearchOpen(false)}
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchOpen(false);
+                }}
                 className="absolute right-2 p-1.5 rounded-full hover:bg-white/10 text-silver-200 transition-colors"
                 id="search-mobile-close"
               >

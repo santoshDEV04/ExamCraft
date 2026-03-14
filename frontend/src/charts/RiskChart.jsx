@@ -15,11 +15,15 @@ const RiskChart = ({ riskScore, riskData }) => {
   const risk = getRiskInfo(score);
   const RiskIcon = risk.icon;
 
-  const pieData = riskData || [
+  const pieData = riskData || (score === 0 ? [
+    { name: 'Strong Topics', value: 0, color: CHART_COLORS.success },
+    { name: 'Moderate', value: 0, color: CHART_COLORS.warning },
+    { name: 'Weak Topics', value: 0, color: CHART_COLORS.danger },
+  ] : [
     { name: 'Strong Topics', value: score, color: CHART_COLORS.success },
     { name: 'Moderate', value: Math.max(0, 100 - score - 15), color: CHART_COLORS.warning },
     { name: 'Weak Topics', value: 15, color: CHART_COLORS.danger },
-  ];
+  ]);
 
   return (
     <ChartPanel title="Risk Assessment" subtitle="Exam readiness prediction">

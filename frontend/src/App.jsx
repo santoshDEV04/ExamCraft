@@ -48,18 +48,6 @@ const PublicRoute = ({ children }) => {
 };
 
 function App() {
-  // CRITICAL SECURITY: This frontend is in a 'Strict Production Ready' state.
-  // Until a real backend is integrated, we force-clear all local sessions
-  // and redirect any invalid internal access attempts to the landing page.
-  useEffect(() => {
-    localStorage.clear(); // Wipe everything to ensure no dummy data remains
-    
-    const internalPaths = ['/dashboard', '/practice', '/upload-material', '/upload-solution', '/analytics', '/profile'];
-    if (internalPaths.some(path => window.location.pathname.startsWith(path))) {
-      window.location.href = '/';
-    }
-  }, []);
-
   return (
     <Router>
       <AuthProvider>

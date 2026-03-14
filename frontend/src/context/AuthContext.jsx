@@ -16,19 +16,22 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Session restoration disabled to prevent demo data persistence.
-    // Auth state will remain null until a real login/register event occurs.
+    const savedUser = authService.getCurrentUser();
+    if (savedUser) {
+      setUser(savedUser);
+    }
     setLoading(false);
   }, []);
 
   const login = async (credentials) => {
     setLoading(true);
     try {
-      const data = await authService.login(credentials);
-      if (data && data.user) {
-        setUser(data.user);
+      const responseBody = await authService.login(credentials);
+      // Backend returns data inside a 'data' property
+      if (responseBody && responseBody.data && responseBody.data.user) {
+        setUser(responseBody.data.user);
       }
-      return data;
+      return responseBody;
     } catch (error) {
       console.error("Auth Exception:", error.message);
       throw error;
@@ -40,11 +43,12 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     setLoading(true);
     try {
-      const data = await authService.register(userData);
-      if (data && data.user) {
-        setUser(data.user);
+      const responseBody = await authService.register(userData);
+      // Backend returns data inside a 'data' property
+      if (responseBody && responseBody.data && responseBody.data.user) {
+        setUser(responseBody.data.user);
       }
-      return data;
+      return responseBody;
     } catch (error) {
       console.error("Auth Exception:", error.message);
       throw error;
@@ -58,9 +62,20 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const updateUser = (updatedUser) => {
-    setUser(updatedUser);
-    localStorage.setItem('examcraft_user', JSON.stringify(updatedUser));
+  const updateProfile = async (profileData) => {
+    setLoading(true);
+    try {
+      const responseBody = await authService.updateProfile(profileData);
+      if (responseBody && responseBody.data) {
+        setUser(responseBody.data);
+      }
+      return responseBody;
+    } catch (error) {
+      console.error("Update Profile Exception:", error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const value = {
@@ -69,7 +84,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    updateUser,
+    updateProfile,
     isAuthenticated: !!user,
   };
 

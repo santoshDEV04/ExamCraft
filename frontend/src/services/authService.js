@@ -50,10 +50,10 @@ const authService = {
 
   // Update profile
   updateProfile: async (profileData) => {
-    const response = await api.put('/profile', profileData);
+    const response = await api.patch('/update-account', profileData);
     const { data } = response.data;
-    if (data && data.user) {
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data.user));
+    if (data) {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data));
     }
     return response.data;
   },

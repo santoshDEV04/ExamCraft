@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useSearch } from '../context/SearchContext';
 import AccuracyChart from '../charts/AccuracyChart';
 import RiskChart from '../charts/RiskChart';
 import ChartPanel, { CHART_COLORS } from '../components/ChartPanel';
@@ -19,9 +20,11 @@ import {
   PieChart,
   Flame,
   ArrowLeft,
+  X,
 } from 'lucide-react';
 
 const Analytics = () => {
+  const { searchQuery, setSearchQuery } = useSearch();
   const [timeRange, setTimeRange] = useState('week');
 
   // Analytics data (Reset for actual app)
@@ -31,6 +34,10 @@ const Analytics = () => {
     { label: 'Avg Time / Q', value: '0m', icon: Clock, color: CHART_COLORS.info },
     { label: 'Current Streak', value: '0 days', icon: Flame, color: CHART_COLORS.warning },
   ];
+
+  const filteredStats = overallStats.filter(stat => 
+    stat.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const topicAccuracy = [];
   const difficultyData = [
@@ -70,7 +77,16 @@ const Analytics = () => {
             Performance Analytics
           </h1>
           <p className="text-silver-200 text-sm mt-1">
-            Track your exam preparation progress
+            {searchQuery ? (
+              <span className="flex items-center gap-2">
+                Results for <span className="text-gold font-bold">&quot;{searchQuery}&quot;</span>
+                <button onClick={() => setSearchQuery('')} className="p-1 rounded-full hover:bg-white/10 text-silver-300">
+                  <X size={12} />
+                </button>
+              </span>
+            ) : (
+              "Track your exam preparation progress"
+            )}
           </p>
         </div>
         <div className="flex gap-2 p-1 bg-dark-200 rounded-xl">
@@ -96,18 +112,24 @@ const Analytics = () => {
         animate="show"
         className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
       >
-        {overallStats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <motion.div key={stat.label} variants={item} className="stat-card">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: `${stat.color}15` }}>
-                <Icon size={20} style={{ color: stat.color }} />
-              </div>
-              <p className="text-2xl font-bold text-silk font-[var(--font-display)]">{stat.value}</p>
-              <p className="text-xs text-dark-700 mt-0.5">{stat.label}</p>
-            </motion.div>
-          );
-        })}
+        {filteredStats.length > 0 ? (
+          filteredStats.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <motion.div key={stat.label} variants={item} className="stat-card">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: `${stat.color}15` }}>
+                  <Icon size={20} style={{ color: stat.color }} />
+                </div>
+                <p className="text-2xl font-bold text-silk font-[var(--font-display)]">{stat.value}</p>
+                <p className="text-xs text-dark-700 mt-0.5">{stat.label}</p>
+              </motion.div>
+            );
+          })
+        ) : (
+          <div className="col-span-full py-10 text-center glass-card opacity-50">
+             <p className="text-sm italic text-silver-200">No matching metrics for &quot;{searchQuery}&quot;</p>
+          </div>
+        )}
       </motion.div>
 
       {/* Charts Row 1 */}

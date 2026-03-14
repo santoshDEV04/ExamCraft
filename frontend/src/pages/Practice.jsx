@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearch } from '../context/SearchContext';
 import questionsData from '../data/questions.json';
 import {
   Search,
-  Filter,
   BookOpen,
   Zap,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
+  X
 } from 'lucide-react';
 
 const subjects = [
@@ -30,12 +31,10 @@ const difficulties = [
   { value: 'hard', label: 'Advanced', desc: 'Complex Problem Solving. Master intricate topics.', color: '#E74C3C', icon: Zap },
 ];
 
-  // Removed hardcoded demo questions
-
 const Practice = () => {
   const navigate = useNavigate();
+  const { searchQuery, setSearchQuery } = useSearch();
   const [step, setStep] = useState('topic'); // topic | prerequisites | difficulty | generating | questions
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState('');
@@ -61,9 +60,6 @@ const Practice = () => {
     // Preparation for AI Generating Questions via Backend
     setTimeout(async () => {
       try {
-        // const response = await api.get(`/questions?topic=${selectedTopic}&difficulty=${diff}`);
-        // setGeneratedQuestions(response.data.questions);
-        
         const filtered = questionsData.filter(q => 
           q.topic.toLowerCase() === selectedTopic.toLowerCase() &&
           q.difficulty.toLowerCase() === diff.toLowerCase()
@@ -114,53 +110,51 @@ const Practice = () => {
                 <br />
                 <span className="text-gradient-gold">practice now?</span>
               </motion.h1>
-              <p className="text-silver-200 text-sm sm:text-base">Select a subject or type a custom topic to begin</p>
-            </div>
- 
-            {/* Search Bar & Custom Topic Action */}
-            <div className="max-w-xl mx-auto mb-16 px-2">
-              <div className="relative group">
-                <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-silver-200 group-focus-within:text-gold transition-colors z-10" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && searchQuery && handleTopicSelect({ name: 'Custom', id: 'custom', icon: '✨' }, searchQuery)}
-                  placeholder="e.g., Integration, Data Structures..."
-                  className="input-dark pl-12 pr-4 py-4.5 text-center sm:text-left text-base sm:text-lg shadow-2xl shadow-black/40 border-white/10 focus:border-gold/30"
-                  id="practice-search"
-                />
-                
-                <AnimatePresence>
-                  {searchQuery && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                      className="absolute top-full left-0 right-0 mt-4 z-20"
+              <p className="text-silver-200 text-sm sm:text-base">
+                {searchQuery ? (
+                  <span className="flex items-center justify-center gap-2">
+                    Showing results for <span className="text-gold font-bold">&quot;{searchQuery}&quot;</span>
+                    <button 
+                      onClick={() => setSearchQuery('')}
+                      className="p-1 rounded-full hover:bg-white/10 text-silver-300 transition-colors"
                     >
-                      <button
-                        onClick={() => handleTopicSelect({ name: 'Custom', id: 'custom', icon: '✨' }, searchQuery)}
-                        className="w-full glass-card p-5 flex items-center justify-between group hover:border-gold/50 transition-all bg-dark-100/90 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-white/10"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center text-gold shadow-inner">
-                            <Sparkles size={24} />
-                          </div>
-                          <div className="text-left">
-                            <p className="text-[10px] text-gold uppercase tracking-[0.2em] font-black mb-0.5">Custom Practice</p>
-                            <p className="text-silk text-lg font-bold font-[var(--font-display)] truncate max-w-[200px] sm:max-w-xs">{searchQuery}</p>
-                          </div>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-gold group-hover:text-dark transition-all">
-                          <ArrowRight size={20} />
-                        </div>
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                      <X size={14} />
+                    </button>
+                  </span>
+                ) : (
+                  "Explore subjects by categories"
+                )}
+              </p>
             </div>
+
+            {/* Global Search Interaction for Custom Topics */}
+            {searchQuery && filteredSubjects.length === 0 && (
+              <div className="max-w-xl mx-auto mb-16 px-2">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  className="z-20"
+                >
+                  <button
+                    onClick={() => handleTopicSelect({ name: 'Custom', id: 'custom', icon: '✨' }, searchQuery)}
+                    className="w-full glass-card p-5 flex items-center justify-between group hover:border-gold/50 transition-all bg-dark-100/90 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-white/10"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center text-gold shadow-inner">
+                        <Sparkles size={24} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[10px] text-gold uppercase tracking-[0.2em] font-black mb-0.5">Custom Practice</p>
+                        <p className="text-silk text-lg font-bold font-[var(--font-display)] truncate max-w-[200px] sm:max-w-xs">{searchQuery}</p>
+                      </div>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-gold group-hover:text-dark transition-all">
+                      <ArrowRight size={20} />
+                    </div>
+                  </button>
+                </motion.div>
+              </div>
+            )}
 
             {/* Subjects Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 max-w-4xl mx-auto pb-10">

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import { SearchProvider } from '../context/SearchContext';
 
 const AppLayout = () => {
   const [isDesktop, setIsDesktop] = useState(
@@ -31,20 +32,22 @@ const AppLayout = () => {
     : '0';
 
   return (
-    <div className="min-h-screen bg-dark bg-grid-pattern">
-      <Navbar
-        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        sidebarOpen={sidebarOpen}
-      />
-      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+    <SearchProvider>
+      <div className="min-h-screen bg-dark bg-grid-pattern">
+        <Navbar
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          sidebarOpen={sidebarOpen}
+        />
+        <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-      <main
-        className="pt-16 min-h-screen transition-all duration-300"
-        style={{ marginLeft: mainMarginLeft }}
-      >
-        <Outlet />
-      </main>
-    </div>
+        <main
+          className="pt-16 min-h-screen transition-all duration-300"
+          style={{ marginLeft: mainMarginLeft }}
+        >
+          <Outlet />
+        </main>
+      </div>
+    </SearchProvider>
   );
 };
 
