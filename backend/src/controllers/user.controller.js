@@ -42,7 +42,7 @@ export const registerUser = asyncHandler( async (req, res) => {
 
     const createdUser = await User.findById(user._id).select("-password -refreshToken")
 
-    res.status(201).json(new ApiResponse(201, "User registered successfully", createdUser))
+    res.status(201).json(new ApiResponse(201, createdUser, "User registered successfully"))
 })
 
 
@@ -79,11 +79,11 @@ export const loginUser = asyncHandler(async (req, res) => {
         .cookie("accessToken", accessToken, options)
         .cookie("refreshToken", refreshToken, options)
         .json(
-            new ApiResponse(true, "User logged in successfully", {
+            new ApiResponse(200, {
                 user: loggedInUser,
                 accessToken,
                 refreshToken
-            })
+            }, "User logged in successfully")
         )
 })
 
