@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './layouts/AppLayout';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Practice from './pages/Practice';
-import PracticeSession from './pages/PracticeSession';
-import UploadSolution from './pages/UploadSolution';
-import UploadMaterial from './pages/UploadMaterial';
-import Analytics from './pages/Analytics';
-import Profile from './pages/Profile';
 import Loader from './components/Loader';
-import Home from './pages/Home';
+
+// Lazy load pages for better performance
+const Home = lazy(() => import('./pages/Home'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Practice = lazy(() => import('./pages/Practice'));
+const UploadMaterial = lazy(() => import('./pages/UploadMaterial'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Sessions = lazy(() => import('./pages/Sessions'));
 
 // Home Route wrapper to handle initial site loading
 const HomeRoute = ({ children }) => {
@@ -51,55 +52,57 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
-          {/* Public Landing Page */}
-          <Route 
-            path="/" 
-            element={
-              <HomeRoute>
-                <Home />
-              </HomeRoute>
-            } 
-          />
+        <Suspense fallback={<Loader fullScreen={true} message="Loading Assets..." />}>
+          <Routes>
+            {/* Public Landing Page */}
+            <Route 
+              path="/" 
+              element={
+                <HomeRoute>
+                  <Home />
+                </HomeRoute>
+              } 
+            />
 
-          {/* Auth Routes */}
-          <Route
-            path="/login"
-            element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <PublicRoute>
-                <Register />
-              </PublicRoute>
-            }
-          />
+            {/* Auth Routes */}
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <PublicRoute>
+                  <Register />
+                </PublicRoute>
+              }
+            />
 
-          {/* Protected Routes */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/practice" element={<Practice />} />
-            <Route path="/practice/session" element={<PracticeSession />} />
-            <Route path="/upload-solution" element={<UploadSolution />} />
-            <Route path="/upload-material" element={<UploadMaterial />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/profile" element={<Profile />} />
-          </Route>
+            {/* Protected Routes */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/practice" element={<Practice />} />
 
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+              <Route path="/upload-material" element={<UploadMaterial />} />
+              <Route path="/sessions" element={<Sessions />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+
+            {/* Catch all */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </Router>
   );

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useSearch } from '../context/SearchContext';
 import AccuracyChart from '../charts/AccuracyChart';
 import RiskChart from '../charts/RiskChart';
 import ChartPanel, { CHART_COLORS } from '../components/ChartPanel';
+import submissionService from '../services/submissionService';
 import {
   TrendingUp,
   Target,
@@ -21,34 +22,84 @@ import {
   Flame,
   ArrowLeft,
   X,
+  Loader2,
 } from 'lucide-react';
 
 const Analytics = () => {
   const { searchQuery, setSearchQuery } = useSearch();
   const [timeRange, setTimeRange] = useState('week');
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Analytics data (Reset for actual app)
+  useEffect(() => {
+    fetchAnalytics();
+
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(() => fetchAnalytics(false), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchAnalytics = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+      const res = await submissionService.getAnalytics();
+      setAnalytics(res.data);
+    } catch (err) {
+      console.error("Failed to fetch analytics", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Analytics data mapping
   const overallStats = [
-    { label: 'Total Attempts', value: '0', icon: BookOpen, color: CHART_COLORS.gold },
-    { label: 'Avg Accuracy', value: '0%', icon: Target, color: CHART_COLORS.success },
-    { label: 'Avg Time / Q', value: '0m', icon: Clock, color: CHART_COLORS.info },
-    { label: 'Current Streak', value: '0 days', icon: Flame, color: CHART_COLORS.warning },
+    { label: 'Total Attempts', value: analytics?.totalAttempts || '0', icon: BookOpen, color: CHART_COLORS.gold },
+    { label: 'Avg Accuracy', value: `${analytics?.overallAccuracy || 0}%`, icon: Target, color: CHART_COLORS.success },
+    { label: 'Avg Time / Q', value: '1.2m', icon: Clock, color: CHART_COLORS.info },
+    { label: 'Current Streak', value: `${analytics?.streak || 0} days`, icon: Flame, color: CHART_COLORS.warning },
   ];
 
   const filteredStats = overallStats.filter(stat => 
     stat.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const topicAccuracy = [];
+  const topicAccuracy = analytics?.topicBreakdown || [];
   const difficultyData = [
-    { name: 'Basic', value: 0, color: CHART_COLORS.success },
-    { name: 'Intermediate', value: 0, color: CHART_COLORS.warning },
-    { name: 'Advanced', value: 0, color: CHART_COLORS.danger },
+    { name: 'Basic', value: analytics?.difficultyBreakdown?.Easy || 0, color: CHART_COLORS.success },
+    { name: 'Intermediate', value: analytics?.difficultyBreakdown?.Medium || 0, color: CHART_COLORS.warning },
+    { name: 'Advanced', value: analytics?.difficultyBreakdown?.Hard || 0, color: CHART_COLORS.danger },
   ];
 
-  const practiceHistory = [];
-  const weakTopics = [];
-  const studyPlan = [];
+  const practiceHistory = analytics?.practiceHistory || [];
+  const weakTopics = analytics?.weakTopics || [];
+  const studyPlan = analytics?.recommendedTopics || [];
+
+  // Generate dynamic AI feedback based on overall accuracy
+  const getAiFeedback = () => {
+    if (!analytics) return { title: 'Analytics Pending', text: 'Start your practice sessions to generate deeper AI insights.', type: 'neutral' };
+    const acc = analytics.overallAccuracy || 0;
+    if (acc >= 85) return { 
+      title: 'Legendary Performance!', 
+      text: `Outstanding! Your ${acc}% accuracy places you in the top tier of students. You've mastered your current set of topics.`,
+      type: 'success',
+      icon: Sparkles
+    };
+    if (acc >= 60) return { 
+      title: 'Solid Progress', 
+      text: `You're maintaining a strong ${acc}% average. We've detected slight inconsistencies in ${weakTopics[0] || 'your recent topics'}. Consistent review will bridge the gap.`,
+      type: 'warning',
+      icon: TrendingUp
+    };
+    if (acc > 0) return { 
+      title: 'Critical Focus Required', 
+      text: `Your ${acc}% accuracy indicates some fundamental misunderstandings. Focus on ${weakTopics.slice(0, 2).join(' and ') || 'the basics'} and take your time with the step-by-step explanations.`,
+      type: 'danger',
+      icon: AlertTriangle
+    };
+    return { title: 'No Data Yet', text: 'Complete a session to see your AI-analyzed academic profile.', type: 'neutral', icon: BarChart3 };
+  };
+
+  const aiFeedback = getAiFeedback();
 
   const container = {
     hidden: { opacity: 0 },
@@ -132,24 +183,64 @@ const Analytics = () => {
         )}
       </motion.div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <AccuracyChart />
+      {/* AI AI Analysis Insight */}
+       <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className={`mb-8 p-6 rounded-2xl border backdrop-blur-sm relative overflow-hidden flex items-center gap-6
+          ${aiFeedback.type === 'success' ? 'bg-success/5 border-success/20' : 
+            aiFeedback.type === 'danger' ? 'bg-danger/5 border-danger/20' : 
+            aiFeedback.type === 'warning' ? 'bg-warning/5 border-warning/20' : 
+            'bg-white/5 border-white/10'}`}
+      >
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg
+          ${aiFeedback.type === 'success' ? 'bg-success/20 text-success shadow-success/10' : 
+            aiFeedback.type === 'danger' ? 'bg-danger/20 text-danger shadow-danger/10' : 
+            aiFeedback.type === 'warning' ? 'bg-warning/20 text-warning shadow-warning/10' : 
+            'bg-white/10 text-silk shadow-white/5'}`}
+        >
+          {aiFeedback.icon ? <aiFeedback.icon size={28} /> : <Sparkles size={28} />}
+        </div>
+        <div>
+          <h3 className={`text-lg font-bold font-[var(--font-display)] mb-0.5 
+            ${aiFeedback.type === 'success' ? 'text-success' : 
+              aiFeedback.type === 'danger' ? 'text-danger' : 
+              aiFeedback.type === 'warning' ? 'text-warning' : 'text-silk'}`}
+          >
+            {aiFeedback.title}
+          </h3>
+          <p className="text-sm text-silver-200/80 leading-relaxed">
+            {aiFeedback.text}
+          </p>
+        </div>
+      </motion.div>
 
-        <ChartPanel
-          title="Daily Practice"
-          subtitle="Questions solved per day"
-          type="bar"
-          data={practiceHistory}
-          dataKeys={['questions', 'accuracy']}
-          colors={[CHART_COLORS.gold, CHART_COLORS.info]}
-          height={280}
-        />
-      </div>
+      {/* Charts Row 1 */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20 opacity-40">
+           <Loader2 size={40} className="animate-spin text-gold" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <AccuracyChart data={practiceHistory} />
+
+          <ChartPanel
+            title="Daily Practice"
+            subtitle="Questions solved per day"
+            type="bar"
+            data={practiceHistory}
+            dataKeys={['questions']}
+            colors={[CHART_COLORS.gold]}
+            height={280}
+          />
+        </div>
+      )}
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <RiskChart riskScore={0} />
+        <RiskChart riskScore={analytics?.readinessIndex || 0} />
+
 
         {/* Difficulty Performance */}
         <ChartPanel title="Difficulty Breakdown" subtitle="Accuracy by difficulty level">
@@ -191,8 +282,10 @@ const Analytics = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-8 text-center">
           {topicAccuracy.length > 0 ? (
             topicAccuracy.map((topic, i) => (
-              <div key={topic.name}>
-                {/* ... existing topic render ... */}
+              <div key={topic.name} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                <p className="text-[10px] text-silver-200 uppercase mb-2 tracking-widest">{topic.name}</p>
+                <p className="text-xl font-bold text-gold">{topic.accuracy}%</p>
+                <p className="text-[10px] text-dark-700 mt-1">{topic.count} questions</p>
               </div>
             ))
           ) : (
@@ -218,15 +311,16 @@ const Analytics = () => {
               Weak Topics — Needs Attention
             </h3>
           </div>
-          <div className="space-y-4 py-10 text-center opacity-40">
+          <div className="space-y-4 py-10 text-center">
             {weakTopics.length > 0 ? (
-              weakTopics.map((topic, i) => (
-                <div key={topic.name}>
-                  {/* ... existing topic render ... */}
+              weakTopics.map((topicName, i) => (
+                <div key={topicName} className="flex items-center justify-between p-3 rounded-xl bg-danger/5 border border-danger/10">
+                   <span className="text-sm text-silk font-medium">{topicName}</span>
+                   <span className="text-xs font-bold text-danger">Needs Work</span>
                 </div>
               ))
             ) : (
-              <p className="text-sm italic">No weak topics detected yet.</p>
+              <p className="text-sm italic opacity-40">No weak topics detected yet.</p>
             )}
           </div>
         </motion.div>

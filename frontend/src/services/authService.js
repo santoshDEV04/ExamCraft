@@ -5,8 +5,11 @@ const AUTH_USER_KEY = 'examcraft_user';
 
 const authService = {
   // Register new user
-  register: async (userData) => {
-    const response = await api.post('/register', userData);
+  register: async (formData) => {
+    // formData should be an instance of FormData
+    const response = await api.post('/auth/register', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     const { data } = response.data;
     if (data && data.accessToken) {
       localStorage.setItem(AUTH_TOKEN_KEY, data.accessToken);
@@ -17,7 +20,7 @@ const authService = {
 
   // Login user
   login: async (credentials) => {
-    const response = await api.post('/login', credentials);
+    const response = await api.post('/auth/login', credentials);
     const { data } = response.data;
     if (data && data.accessToken) {
       localStorage.setItem(AUTH_TOKEN_KEY, data.accessToken);
@@ -26,16 +29,22 @@ const authService = {
     return response.data;
   },
 
-  // Logout
-  logout: () => {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    localStorage.removeItem(AUTH_USER_KEY);
-  },
 
-  // Get current user
+
+  // Get current user from storage
   getCurrentUser: () => {
     const userStr = localStorage.getItem(AUTH_USER_KEY);
     return userStr ? JSON.parse(userStr) : null;
+  },
+
+  // Fetch fresh user data from backend
+  getMe: async () => {
+    const response = await api.get('/auth/me');
+    const { data } = response.data;
+    if (data) {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data));
+    }
+    return response.data;
   },
 
   // Get token
@@ -49,13 +58,26 @@ const authService = {
   },
 
   // Update profile
-  updateProfile: async (profileData) => {
-    const response = await api.patch('/update-account', profileData);
+  updateProfile: async (formData) => {
+    // formData should be an instance of FormData
+    const response = await api.patch('/auth/update-account', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     const { data } = response.data;
     if (data) {
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data));
     }
     return response.data;
+  },
+  
+  logout: async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error("Logout error", error);
+    }
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
   },
 
 };

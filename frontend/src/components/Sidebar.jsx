@@ -11,6 +11,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  History,
 } from 'lucide-react';
 
 const navItems = [
@@ -33,11 +34,12 @@ const navItems = [
     description: 'PDFs & notes',
   },
   {
-    label: 'Submit Solution',
-    path: '/upload-solution',
-    icon: Upload,
-    description: 'Upload answers',
+    label: 'Sessions',
+    path: '/sessions',
+    icon: History,
+    description: 'Practice history',
   },
+
   {
     label: 'Analytics',
     path: '/analytics',

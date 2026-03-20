@@ -23,50 +23,89 @@ import {
   Brain,
   Upload,
   ArrowLeft,
+  History,
 } from 'lucide-react';
+import sessionService from '../services/sessionService';
+import submissionService from '../services/submissionService';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { searchQuery } = useSearch();
   const [greeting, setGreeting] = useState('');
+  const [latestSession, setLatestSession] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good Morning');
-    else if (hour < 17) setGreeting('Good Afternoon');
-    else setGreeting('Good Evening');
+    const updateGreeting = () => {
+      const hour = new Date().getHours();
+      if (hour >= 5 && hour < 12) setGreeting('Good Morning');
+      else if (hour >= 12 && hour < 17) setGreeting('Good Afternoon');
+      else if (hour >= 17 && hour < 21) setGreeting('Good Evening');
+      else setGreeting('Good Night');
+    };
+
+    updateGreeting();
+    fetchDashboardData();
+
+    // Auto-refresh greeting and data
+    const interval = setInterval(() => {
+      updateGreeting();
+      fetchDashboardData(false);
+    }, 60000);
+    
+    return () => clearInterval(interval);
   }, []);
 
-  // Dashboard data (Reduced demo data for actual app transition)
+  const fetchDashboardData = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+      const [sessionsRes, analyticsRes] = await Promise.all([
+        sessionService.getAllSessions(),
+        submissionService.getAnalytics()
+      ]);
+      
+      if (sessionsRes.data && sessionsRes.data.length > 0) {
+        setLatestSession(sessionsRes.data[0]);
+      }
+      setAnalytics(analyticsRes.data);
+    } catch (err) {
+      console.error("Failed to fetch dashboard data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Dashboard data using real analytics
   const stats = [
     {
       label: 'Questions Solved',
-      value: '0',
-      change: 'Start practicing',
+      value: analytics?.totalAttempts || '0',
+      change: analytics?.streak ? `${analytics.streak} day streak` : 'Start practicing',
       changeType: 'neutral',
       icon: BookOpen,
       color: CHART_COLORS.gold,
     },
     {
       label: 'Overall Accuracy',
-      value: '0%',
-      change: 'No attempts yet',
+      value: `${analytics?.overallAccuracy || 0}%`,
+      change: 'Lifetime average',
       changeType: 'neutral',
       icon: Target,
       color: CHART_COLORS.success,
     },
     {
-      label: 'Study Hours',
-      value: '0h',
-      change: 'Welcome!',
+      label: 'Current Readiness',
+      value: `${analytics?.readinessIndex || 0}%`,
+      change: 'Exam readiness score',
       changeType: 'neutral',
-      icon: Clock,
+      icon: Zap,
       color: CHART_COLORS.info,
     },
     {
-      label: 'Topics Covered',
-      value: '0/24',
-      change: '0% complete',
+      label: 'Grade Rank',
+      value: analytics?.overallAccuracy >= 90 ? 'A+' : analytics?.overallAccuracy >= 80 ? 'A' : analytics?.overallAccuracy >= 70 ? 'B+' : analytics?.overallAccuracy >= 60 ? 'B' : 'C',
+      change: 'Academic standing',
       changeType: 'neutral',
       icon: Award,
       color: CHART_COLORS.warning,
@@ -77,12 +116,42 @@ const Dashboard = () => {
     stat.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const weakTopics = [];
+  const weakTopics = analytics?.weakTopics || [];
   const recentActivity = [];
-  const topicPerformance = [];
-  const recommendations = [
-    { text: 'Complete your first practice session to get AI recommendations', priority: 'medium', icon: Brain },
-  ];
+  const topicPerformance = analytics?.topicBreakdown || [];
+
+  // Generate dynamic AI feedback based on overall accuracy
+  const getAiFeedback = () => {
+    if (!analytics) return { title: 'Starting Your Journey', text: 'Complete your first practice session to see AI insights here.', type: 'neutral' };
+    const acc = analytics.overallAccuracy || 0;
+    if (acc >= 85) return { 
+      title: 'Academic Excellence!', 
+      text: `Congratulations! Your're excelling with ${acc}% accuracy. You've mastered the core concepts. Ready for higher difficulty?`,
+      type: 'success',
+      icon: Sparkles
+    };
+    if (acc >= 60) return { 
+      title: 'Strong Foundation', 
+      text: `Good progress with ${acc}% accuracy. You're consistent, but there's room to sharpen some edge cases in ${weakTopics[0] || 'challenging areas'}.`,
+      type: 'warning',
+      icon: TrendingUp
+    };
+    if (acc > 0) return { 
+      title: 'Improvement Needed', 
+      text: `Your current accuracy is ${acc}%. To improve, we recommend focusing on ${weakTopics.slice(0, 2).join(' and ') || 'fundamental topics'} and reviewing step-by-step solutions carefully.`,
+      type: 'danger',
+      icon: AlertTriangle
+    };
+    return { title: 'Welcome to ExamCraft', text: 'Upload your first material to begin your accelerated learning journey.', type: 'neutral', icon: Brain };
+  };
+
+  const aiFeedback = getAiFeedback();
+
+  const recommendations = analytics?.weakTopics?.length > 0 
+    ? analytics.weakTopics.map(t => ({ text: `Improve your skills in ${t}`, priority: 'high', icon: Brain }))
+    : [
+        { text: 'Complete practice sessions to get AI recommendations', priority: 'medium', icon: Brain },
+      ];
 
   const container = {
     hidden: { opacity: 0 },
@@ -157,6 +226,47 @@ const Dashboard = () => {
           </div>
         )}
       </motion.div>
+      
+      {/* AI Learning Insight Panel */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.2 }}
+        className={`mb-8 p-5 rounded-2xl border backdrop-blur-sm relative overflow-hidden group
+          ${aiFeedback.type === 'success' ? 'bg-success/5 border-success/20' : 
+            aiFeedback.type === 'danger' ? 'bg-danger/5 border-danger/20' : 
+            aiFeedback.type === 'warning' ? 'bg-warning/5 border-warning/20' : 
+            'bg-white/5 border-white/10'}`}
+      >
+        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+          {aiFeedback.icon && <aiFeedback.icon size={120} />}
+        </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 relative z-10">
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg
+            ${aiFeedback.type === 'success' ? 'bg-success/20 text-success shadow-success/10' : 
+              aiFeedback.type === 'danger' ? 'bg-danger/20 text-danger shadow-danger/10' : 
+              aiFeedback.type === 'warning' ? 'bg-warning/20 text-warning shadow-warning/10' : 
+              'bg-white/10 text-silk shadow-white/5'}`}
+          >
+            {aiFeedback.icon ? <aiFeedback.icon size={28} /> : <Sparkles size={28} />}
+          </div>
+          <div>
+            <h3 className={`text-lg font-bold font-[var(--font-display)] mb-1 
+              ${aiFeedback.type === 'success' ? 'text-success' : 
+                aiFeedback.type === 'danger' ? 'text-danger' : 
+                aiFeedback.type === 'warning' ? 'text-warning' : 'text-silk'}`}
+            >
+              {aiFeedback.title}
+            </h3>
+            <p className="text-sm text-silver-200 leading-relaxed max-w-3xl">
+              {aiFeedback.text}
+            </p>
+          </div>
+          <Link to="/analytics" className="sm:ml-auto px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-silk transition-all active:scale-95">
+            Full Analysis
+          </Link>
+        </div>
+      </motion.div>
 
       {/* Quick Actions */}
       <motion.div
@@ -213,8 +323,8 @@ const Dashboard = () => {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <AccuracyChart />
-        <RiskChart riskScore={0} />
+        <AccuracyChart data={analytics?.practiceHistory || []} />
+        <RiskChart riskScore={analytics?.readinessIndex || 0} />
       </div>
 
       {/* Bottom Row */}
@@ -233,8 +343,13 @@ const Dashboard = () => {
           <div className="space-y-4 py-8 text-center">
             {weakTopics.length > 0 ? (
               weakTopics.map((topic, i) => (
-                <div key={topic.name}>
-                  {/* ... existing topic render ... */}
+                <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/[0.04] border border-transparent hover:border-white/5 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-danger/10 flex items-center justify-center">
+                      <AlertTriangle size={14} className="text-danger" />
+                    </div>
+                    <span className="text-sm text-silk">{topic}</span>
+                  </div>
                 </div>
               ))
             ) : (
@@ -296,32 +411,23 @@ const Dashboard = () => {
           </div>
           <div className="space-y-3">
             {recommendations.map((rec, i) => {
-              const RecIcon = rec.icon;
+              const Icon = rec.icon;
               return (
-                <motion.div
+                <div 
                   key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.8 + i * 0.1 }}
-                  className={`p-3 rounded-xl border transition-colors cursor-pointer hover:border-gold/30 ${
-                    rec.priority === 'high'
-                      ? 'bg-danger/5 border-danger/15'
-                      : rec.priority === 'medium'
-                      ? 'bg-warning/5 border-warning/15'
-                      : 'bg-success/5 border-success/15'
-                  }`}
+                  className={`p-3 rounded-xl border flex items-start gap-4 transition-all hover:border-gold/30
+                    ${rec.priority === 'high' ? 'bg-danger/5 border-danger/20' : 'bg-white/5 border-white/10'}`}
                 >
-                  <div className="flex items-start justify-between gap-2.5">
-                    <div className="flex items-start gap-2.5">
-                      <RecIcon size={16} className={`mt-0.5 shrink-0 ${
-                        rec.priority === 'high' ? 'text-danger' :
-                        rec.priority === 'medium' ? 'text-warning' : 'text-success'
-                      }`} />
-                      <p className="text-sm text-silk leading-relaxed">{rec.text}</p>
-                    </div>
-                    <ChevronRight size={14} className="text-dark-700 mt-1 shrink-0 group-hover:text-gold group-hover:translate-x-1 transition-all" />
+                  <div className={`mt-0.5 p-2 rounded-lg ${rec.priority === 'high' ? 'bg-danger/10 text-danger' : 'bg-gold/10 text-gold'}`}>
+                    <Icon size={16} />
                   </div>
-                </motion.div>
+                  <div className="flex-1">
+                    <p className="text-sm text-silk leading-relaxed">{rec.text}</p>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest mt-1 block ${rec.priority === 'high' ? 'text-danger' : 'text-silver-200'}`}>
+                      {rec.priority} Priority
+                    </span>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -349,6 +455,33 @@ const Dashboard = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Floating Grade removed - handled globally in AppLayout restricted to Home page */}
+
+      {/* Current Session Summary Card (at bottom for quick glance) */}
+      {latestSession && latestSession.status === 'active' && (
+        <motion.div 
+          initial={{ y: 50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="mt-8 glass-card p-6 border-l-4 border-l-gold bg-gold/5"
+        >
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-gold/20 flex items-center justify-center shrink-0">
+                <Brain size={24} className="text-gold" />
+              </div>
+              <div>
+                <h4 className="text-silk font-bold">Active Session: {latestSession.topic}</h4>
+                <p className="text-xs text-silver-200/50">You have questions waiting to be solved. Resume to increase your grade!</p>
+              </div>
+            </div>
+            <Link to="/upload-material" state={{ sessionId: latestSession._id, resume: true }}
+              className="btn-gold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2">
+              Resume Now <ChevronRight size={14} />
+            </Link>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };

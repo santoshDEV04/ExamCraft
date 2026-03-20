@@ -29,25 +29,25 @@ const submissionService = {
 
   // Get analytics / performance data
   getAnalytics: async () => {
-    const response = await api.get('/submissions/analytics');
+    const response = await api.get('/analytics');
     return response.data;
   },
 
   // Get risk prediction
   getRiskPrediction: async () => {
-    const response = await api.get('/submissions/risk-prediction');
+    const response = await api.get('/analytics/risk-prediction');
     return response.data;
   },
 
   // Get weak topics
   getWeakTopics: async () => {
-    const response = await api.get('/submissions/weak-topics');
+    const response = await api.get('/analytics/weak-topics');
     return response.data;
   },
 
   // Get recommendations
   getRecommendations: async () => {
-    const response = await api.get('/submissions/recommendations');
+    const response = await api.get('/analytics/recommendations');
     return response.data;
   },
 };

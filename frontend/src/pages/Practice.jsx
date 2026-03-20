@@ -1,206 +1,214 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSearch } from '../context/SearchContext';
-import questionsData from '../data/questions.json';
 import {
-  Search,
-  BookOpen,
-  Zap,
-  ArrowRight,
-  Sparkles,
-  ChevronDown,
-  Layers,
-  Brain,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  X
+  BookOpen, Zap, Sparkles, ChevronRight,
+  Layers, Brain, Plus, X, PenLine, Search,
 } from 'lucide-react';
 
+/* ─── Data ─── */
 const subjects = [
-  { id: 'math', name: 'Mathematics', icon: '📐', topics: ['Integration', 'Differentiation', 'Algebra', 'Probability', 'Trigonometry'] },
-  { id: 'physics', name: 'Physics', icon: '⚡', topics: ['Mechanics', 'Thermodynamics', 'Optics', 'Electromagnetism', 'Waves'] },
-  { id: 'cs', name: 'Computer Science', icon: '💻', topics: ['Data Structures', 'Algorithms', 'DBMS', 'OS', 'Networks'] },
-  { id: 'chem', name: 'Chemistry', icon: '🧪', topics: ['Organic', 'Inorganic', 'Physical', 'Analytical'] },
+  { id: 'math',    name: 'Mathematics',     icon: '📐', topics: ['Integration','Differentiation','Algebra','Probability','Trigonometry'] },
+  { id: 'physics', name: 'Physics',          icon: '⚡', topics: ['Mechanics','Thermodynamics','Optics','Electromagnetism','Waves'] },
+  { id: 'cs',      name: 'Computer Science', icon: '💻', topics: ['Data Structures','Algorithms','DBMS','OS','Networks'] },
+  { id: 'chem',    name: 'Chemistry',        icon: '🧪', topics: ['Organic','Inorganic','Physical','Analytical'] },
 ];
 
 const difficulties = [
-  { value: 'easy', label: 'Basic', desc: 'Fundamental Concepts. Build a strong foundation.', color: '#2ECC71', icon: BookOpen },
-  { value: 'intermediate', label: 'Intermediate', desc: 'Applying Knowledge. Deepen your understanding.', color: '#F39C12', icon: Brain },
-  { value: 'hard', label: 'Advanced', desc: 'Complex Problem Solving. Master intricate topics.', color: '#E74C3C', icon: Zap },
+  { value: 'easy',         label: 'Basic',       desc: 'Fundamental concepts — build a strong foundation.', color: '#2ECC71', icon: BookOpen },
+  { value: 'intermediate', label: 'Intermediate', desc: 'Apply knowledge and deepen understanding.',          color: '#F39C12', icon: Brain   },
+  { value: 'hard',         label: 'Advanced',     desc: 'Complex problem solving — master topics.',           color: '#E74C3C', icon: Zap     },
 ];
 
+/* ─── Component ─── */
 const Practice = () => {
   const navigate = useNavigate();
-  const { searchQuery, setSearchQuery } = useSearch();
-  const [step, setStep] = useState('topic'); // topic | prerequisites | difficulty | generating | questions
-  const [selectedSubject, setSelectedSubject] = useState(null);
-  const [selectedTopic, setSelectedTopic] = useState('');
-  const [selectedDifficulty, setSelectedDifficulty] = useState('');
-  const [generatedQuestions, setGeneratedQuestions] = useState([]);
 
-  // Placeholder for prerequisites (to be fetched from backend)
-  const prerequisites = {};
+  const [step,            setStep]            = useState('topic'); // topic | difficulty
+  const [selectedSubject, setSelectedSubject] = useState(null);
+  const [selectedTopic,   setSelectedTopic]   = useState('');
+  const [customInput,     setCustomInput]     = useState('');
+  const [filterQuery,     setFilterQuery]     = useState('');
+
+  const inputRef = useRef(null);
+
+  const resetToTopic = () => {
+    setStep('topic');
+    setSelectedSubject(null);
+    setSelectedTopic('');
+    setCustomInput('');
+    setFilterQuery('');
+  };
 
   const handleTopicSelect = (subject, topic) => {
     setSelectedSubject(subject);
     setSelectedTopic(topic);
-    if (prerequisites[topic]) {
-      setStep('prerequisites');
-    } else {
-      setStep('difficulty');
-    }
+    setStep('difficulty');
   };
 
+  const handleCustomSubmit = () => {
+    const t = customInput.trim();
+    if (!t) return;
+    handleTopicSelect({ name: 'Custom', id: 'custom', icon: '✨' }, t);
+    setCustomInput('');
+  };
+
+  /* When difficulty is chosen → hand off to upload-material for
+     the full practice+solution workflow (questions, timer, submit, results) */
   const handleDifficultySelect = (diff) => {
-    setSelectedDifficulty(diff);
-    setStep('generating');
-    
-    // Preparation for AI Generating Questions via Backend
-    setTimeout(async () => {
-      try {
-        const filtered = questionsData.filter(q => 
-          q.topic.toLowerCase() === selectedTopic.toLowerCase() &&
-          q.difficulty.toLowerCase() === diff.toLowerCase()
-        );
-        
-        if (filtered.length > 0) {
-          setGeneratedQuestions(filtered);
-        } else {
-          setGeneratedQuestions([]); // No questions found for now
-        }
-      } catch (err) {
-        console.error("Failed to fetch questions", err);
-        setGeneratedQuestions([]);
-      }
-      setStep('questions');
-    }, 2500);
+    navigate('/upload-material', {
+      state: { skipToQuestions: true, topic: selectedTopic, difficulty: diff },
+    });
   };
 
-  const handleStartPractice = (question) => {
-    navigate('/upload-solution', { state: { question } });
-  };
+  const filteredSubjects = subjects
+    .map(s => ({
+      ...s,
+      topics: s.topics.filter(t =>
+        !filterQuery || t.toLowerCase().includes(filterQuery.toLowerCase())
+      ),
+    }))
+    .filter(s =>
+      !filterQuery ||
+      s.name.toLowerCase().includes(filterQuery.toLowerCase()) ||
+      s.topics.length > 0
+    );
 
-  const filteredSubjects = subjects.filter(
-    (s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           s.topics.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const hasAnyTopics = filteredSubjects.some(s => s.topics.length > 0);
 
+  /* ── render ── */
   return (
     <div className="page-container">
       <AnimatePresence mode="wait">
-        {/* STEP 1: Topic Selection */}
+
+        {/* ══════════════════════════
+            STEP 1 — Topic Selection
+        ══════════════════════════ */}
         {step === 'topic' && (
-          <motion.div
-            key="topic"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
-          >
+          <motion.div key="topic"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.35 }}>
+
             {/* Header */}
-            <div className="text-center mb-10">
+            <div className="text-center mb-7 sm:mb-10 px-2">
               <motion.h1
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-3xl sm:text-4xl lg:text-5xl font-bold text-silk font-[var(--font-display)] mb-4"
-              >
+                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                className="text-2xl sm:text-4xl lg:text-5xl font-bold text-silk font-[var(--font-display)] mb-3 leading-tight">
                 Which topic do you want to
-                <br />
-                <span className="text-gradient-gold">practice now?</span>
+                <br className="hidden sm:block" />
+                {' '}<span className="text-gradient-gold">practice now?</span>
               </motion.h1>
-              <p className="text-silver-200 text-sm sm:text-base">
-                {searchQuery ? (
-                  <span className="flex items-center justify-center gap-2">
-                    Showing results for <span className="text-gold font-bold">&quot;{searchQuery}&quot;</span>
-                    <button 
-                      onClick={() => setSearchQuery('')}
-                      className="p-1 rounded-full hover:bg-white/10 text-silver-300 transition-colors"
-                    >
-                      <X size={14} />
-                    </button>
-                  </span>
-                ) : (
-                  "Explore subjects by categories"
-                )}
+              <p className="text-silver-200 text-xs sm:text-sm">
+                Choose a predefined topic or type your own
               </p>
             </div>
 
-            {/* Global Search Interaction for Custom Topics */}
-            {searchQuery && filteredSubjects.length === 0 && (
-              <div className="max-w-xl mx-auto mb-16 px-2">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  className="z-20"
-                >
-                  <button
-                    onClick={() => handleTopicSelect({ name: 'Custom', id: 'custom', icon: '✨' }, searchQuery)}
-                    className="w-full glass-card p-5 flex items-center justify-between group hover:border-gold/50 transition-all bg-dark-100/90 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-white/10"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center text-gold shadow-inner">
-                        <Sparkles size={24} />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-[10px] text-gold uppercase tracking-[0.2em] font-black mb-0.5">Custom Practice</p>
-                        <p className="text-silk text-lg font-bold font-[var(--font-display)] truncate max-w-[200px] sm:max-w-xs">{searchQuery}</p>
-                      </div>
-                    </div>
-                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-gold group-hover:text-dark transition-all">
-                      <ArrowRight size={20} />
-                    </div>
-                  </button>
-                </motion.div>
+            {/* ── Custom topic input ── */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="max-w-2xl mx-auto mb-6 sm:mb-8 px-1">
+              <div className="glass-card p-3 sm:p-4 border border-gold/25 hover:border-gold/45 transition-all shadow-[0_8px_32px_rgba(201,168,76,0.07)]">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-xl bg-gold/10 flex items-center justify-center shrink-0">
+                    <PenLine size={15} className="text-gold" />
+                  </div>
+                  <p className="text-xs font-bold text-gold uppercase tracking-[0.15em]">Custom Topic</p>
+                </div>
+                <div className="relative mb-3">
+                  <input ref={inputRef} type="text" value={customInput}
+                    onChange={e => setCustomInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleCustomSubmit()}
+                    placeholder="e.g. Machine Learning, Thermodynamics, Black Holes…"
+                    className="w-full bg-dark-200/60 border border-white/8 rounded-xl px-4 py-3 text-silk text-sm placeholder-silver-200/30 outline-none focus:border-gold/50 focus:shadow-[0_0_0_3px_rgba(201,168,76,0.10)] transition-all pr-8"
+                    id="custom-topic-input" />
+                  {customInput && (
+                    <button onClick={() => setCustomInput('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-silver-200/40 hover:text-silver-200 transition-colors p-0.5">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                <button onClick={handleCustomSubmit} disabled={!customInput.trim()}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gold text-dark font-bold text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gold/90 active:scale-[0.98] transition-all"
+                  id="custom-topic-submit">
+                  <Plus size={15} /> Start Practice
+                </button>
+                <p className="text-center text-[10px] text-silver-200/40 mt-2.5">
+                  Press{' '}
+                  <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-[10px]">Enter</kbd>
+                  {' '}or click <strong className="text-gold">Start Practice</strong>
+                </p>
               </div>
-            )}
+            </motion.div>
 
-            {/* Subjects Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 max-w-4xl mx-auto pb-10">
-              {filteredSubjects.length > 0 ? (
-                filteredSubjects.map((subject, si) => (
-                  <motion.div
-                    key={subject.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: si * 0.1 }}
-                    className="glass-card p-5 sm:p-6 flex flex-col h-full"
-                  >
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-2xl shadow-inner border border-white/5">
+            {/* ── Divider ── */}
+            <div className="flex items-center gap-3 max-w-2xl mx-auto mb-5 px-1">
+              <div className="flex-1 h-px bg-white/5" />
+              <span className="text-[10px] sm:text-xs text-silver-200/35 uppercase tracking-widest font-semibold whitespace-nowrap">
+                or browse subjects
+              </span>
+              <div className="flex-1 h-px bg-white/5" />
+            </div>
+
+            {/* ── Filter bar ── */}
+            <div className="max-w-2xl mx-auto mb-4 sm:mb-5 px-1">
+              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-dark-100/60 border border-white/5 backdrop-blur">
+                <Search size={14} className="text-silver-200/35 shrink-0" />
+                <input type="text" value={filterQuery}
+                  onChange={e => setFilterQuery(e.target.value)}
+                  placeholder="Filter topics…"
+                  className="flex-1 bg-transparent text-sm text-silk placeholder-silver-200/30 outline-none min-w-0"
+                  id="topic-filter-input" />
+                {filterQuery && (
+                  <button onClick={() => setFilterQuery('')}
+                    className="text-silver-200/40 hover:text-silver-200 transition-colors shrink-0">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* ── Subject grid ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 max-w-4xl mx-auto pb-10 px-1">
+              {hasAnyTopics ? (
+                filteredSubjects.filter(s => s.topics.length > 0).map((subject, si) => (
+                  <motion.div key={subject.id}
+                    initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: si * 0.07 }}
+                    className="glass-card p-4 sm:p-6 flex flex-col">
+                    <div className="flex items-center gap-3 mb-4 sm:mb-5">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/5 flex items-center justify-center text-xl sm:text-2xl border border-white/5 shrink-0">
                         {subject.icon}
                       </div>
-                      <h3 className="text-xl font-bold text-silk font-[var(--font-display)]">{subject.name}</h3>
+                      <h3 className="text-base sm:text-xl font-bold text-silk font-[var(--font-display)]">
+                        {subject.name}
+                      </h3>
                     </div>
-                    <div className="grid grid-cols-1 xs:grid-cols-2 gap-2.5">
-                      {subject.topics
-                        .filter((t) => t.toLowerCase().includes(searchQuery.toLowerCase()) || !searchQuery)
-                        .map((topic) => (
-                          <button
-                            key={topic}
-                            onClick={() => handleTopicSelect(subject, topic)}
-                            className="text-left p-3.5 rounded-xl bg-dark-200/50 hover:bg-gold/10 border border-white/5 hover:border-gold/30 transition-all text-sm text-silver-200 hover:text-silk group flex items-center justify-between"
-                            id={`topic-${topic.toLowerCase().replace(/\s+/g, '-')}`}
-                          >
-                            <span className="flex items-center gap-2.5 truncate">
-                              <Layers size={14} className="text-gold/40 group-hover:text-gold transition-colors shrink-0" />
-                              <span className="truncate">{topic}</span>
-                            </span>
-                            <ChevronDown size={14} className="opacity-0 group-hover:opacity-40 -rotate-90 transition-all" />
-                          </button>
-                        ))}
+                    <div className="grid grid-cols-2 gap-2">
+                      {subject.topics.map(topic => (
+                        <button key={topic} onClick={() => handleTopicSelect(subject, topic)}
+                          className="text-left p-2.5 sm:p-3.5 rounded-xl bg-dark-200/50 hover:bg-gold/10 border border-white/5 hover:border-gold/30 transition-all text-xs sm:text-sm text-silver-200 hover:text-silk group flex items-center justify-between gap-1 active:scale-95"
+                          id={`topic-${topic.toLowerCase().replace(/\s+/g, '-')}`}>
+                          <span className="flex items-center gap-2 truncate">
+                            <Layers size={11} className="text-gold/40 group-hover:text-gold transition-colors shrink-0" />
+                            <span className="truncate">{topic}</span>
+                          </span>
+                          <ChevronRight size={11} className="opacity-0 group-hover:opacity-40 transition-all shrink-0" />
+                        </button>
+                      ))}
                     </div>
                   </motion.div>
                 ))
               ) : (
-                <div className="col-span-full py-12 text-center">
-                  <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/5">
-                    <Search size={32} className="text-silver-200 opacity-20" />
+                <div className="col-span-full py-12 text-center px-4">
+                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/5">
+                    <Search size={26} className="text-silver-200 opacity-20" />
                   </div>
-                  <h3 className="text-xl font-bold text-silk mb-2 font-[var(--font-display)]">No matching topics</h3>
-                  <p className="text-silver-200 max-w-sm mx-auto">
-                    Try typing a custom topic and click the practice card above to start.
+                  <h3 className="text-base sm:text-lg font-bold text-silk mb-2 font-[var(--font-display)]">
+                    No matching topics
+                  </h3>
+                  <p className="text-silver-200 text-sm max-w-xs mx-auto">
+                    Type your topic above and tap <strong className="text-gold">Start Practice</strong>.
                   </p>
                 </div>
               )}
@@ -208,219 +216,77 @@ const Practice = () => {
           </motion.div>
         )}
 
-        {/* STEP 2: Prerequisites */}
-        {step === 'prerequisites' && (
-          <motion.div
-            key="prerequisites"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
-            className="max-w-lg mx-auto text-center"
-          >
-            <div className="mb-8">
-              <motion.div
-                initial={{ scale: 0.8 }}
-                animate={{ scale: 1 }}
-                className="w-16 h-16 mx-auto rounded-2xl bg-gold/10 flex items-center justify-center mb-4"
-              >
-                <BookOpen size={28} className="text-gold" />
-              </motion.div>
-              <h2 className="text-2xl font-bold text-silk font-[var(--font-display)] mb-2">
-                Topic: <span className="text-gradient-gold">{selectedTopic}</span>
-              </h2>
-            </div>
- 
-            <div className="glass-card p-6 mb-6 text-left">
-              <div className="flex items-start gap-3 mb-4">
-                <AlertTriangle size={20} className="text-warning shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm text-silk font-medium mb-2">
-                    Before practicing {selectedTopic}, revise:
-                  </p>
-                  <ul className="space-y-2">
-                    {(prerequisites[selectedTopic] || []).map((prereq) => (
-                      <li key={prereq} className="flex items-center gap-2 text-sm text-silver-200">
-                        <div className="w-1.5 h-1.5 rounded-full bg-gold/60" />
-                        {prereq}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
- 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setStep('topic')}
-                className="btn-gold flex-1 py-3 flex items-center justify-center gap-2"
-                id="revise-prerequisites-btn"
-              >
-                <BookOpen size={16} />
-                Revise Prerequisites
-              </button>
-              <button
-                onClick={() => setStep('difficulty')}
-                className="btn-dark flex-1 py-3 flex items-center justify-center gap-2"
-                id="continue-anyway-btn"
-              >
-                Continue Anyway
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* STEP 3: Difficulty Selection */}
+        {/* ══════════════════════════
+            STEP 2 — Difficulty
+        ══════════════════════════ */}
         {step === 'difficulty' && (
-          <motion.div
-            key="difficulty"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
-          >
-            <div className="text-center mb-10">
-              <p className="text-sm text-gold mb-2 font-medium uppercase tracking-widest">
-                {selectedSubject?.name} • {selectedTopic}
-              </p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-silk font-[var(--font-display)] mb-2">
+          <motion.div key="difficulty"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.35 }}>
+
+            {/* Context badge */}
+            <div className="text-center mb-8 sm:mb-10 px-2">
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                className="inline-flex items-center gap-2 mb-4 px-3 sm:px-4 py-2 rounded-full bg-gold/10 border border-gold/20 max-w-full">
+                <span className="text-lg">{selectedSubject?.icon}</span>
+                <span className="text-xs sm:text-sm font-bold text-gold truncate">{selectedSubject?.name}</span>
+                <span className="text-silver-200/40 mx-0.5">•</span>
+                <span className="text-xs sm:text-sm text-silk font-semibold truncate max-w-[140px] sm:max-w-none">{selectedTopic}</span>
+              </motion.div>
+              <h2 className="text-xl sm:text-3xl font-bold text-silk font-[var(--font-display)] mb-2">
                 Select Difficulty Level
               </h2>
-              <p className="text-silver-200 text-sm">Choose based on your comfort level</p>
+              <p className="text-silver-200 text-xs sm:text-sm">
+                Choose your comfort level — AI will generate matching questions
+              </p>
             </div>
- 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-3xl mx-auto">
-              {difficulties.map((diff, i) => {
-                const DiffIcon = diff.icon;
+
+            {/* Difficulty cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 max-w-3xl mx-auto px-1">
+              {difficulties.map((d, i) => {
+                const DIcon = d.icon;
                 return (
-                  <motion.button
-                    key={diff.value}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.15 }}
-                    whileHover={{ y: -5, scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleDifficultySelect(diff.value)}
-                    className="glass-card p-6 text-center group cursor-pointer border border-transparent hover:border-gold/30 transition-all"
-                    id={`difficulty-${diff.value}`}
-                  >
-                    <div
-                      className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-inner"
-                      style={{ backgroundColor: `${diff.color}15` }}
-                    >
-                      <DiffIcon size={24} style={{ color: diff.color }} />
+                  <motion.button key={d.value}
+                    initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.11 }}
+                    whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => handleDifficultySelect(d.value)}
+                    className="glass-card p-4 sm:p-6 group cursor-pointer border border-transparent hover:border-gold/30 transition-all flex sm:flex-col items-center gap-4 sm:gap-0 text-left sm:text-center"
+                    id={`difficulty-${d.value}`}>
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 sm:mx-auto rounded-2xl flex items-center justify-center shrink-0 sm:mb-4 transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: `${d.color}18` }}>
+                      <DIcon size={22} style={{ color: d.color }} />
                     </div>
-                    <h3 className="text-lg font-bold text-silk font-[var(--font-display)] mb-2 group-hover:text-gold transition-colors">
-                      {diff.label}
-                    </h3>
-                    <p className="text-xs text-silver-200 leading-relaxed">{diff.desc}</p>
-                    <div className="mt-4 py-2 rounded-lg bg-dark-300 group-hover:bg-gold group-hover:text-dark transition-all">
+                    <div className="flex-1 sm:flex-none">
+                      <h3 className="text-base sm:text-lg font-bold text-silk font-[var(--font-display)] group-hover:text-gold transition-colors sm:mb-1.5">
+                        {d.label}
+                      </h3>
+                      <p className="text-xs text-silver-200/70 leading-relaxed">{d.desc}</p>
+                    </div>
+                    <ChevronRight size={16} className="text-silver-200/20 group-hover:text-gold sm:hidden shrink-0" />
+                    <div className="mt-4 py-2 rounded-lg bg-dark-300 group-hover:bg-gold group-hover:text-dark transition-all w-full hidden sm:block">
                       <span className="text-sm font-semibold">Select</span>
                     </div>
                   </motion.button>
                 );
               })}
             </div>
- 
-            <div className="text-center mt-6">
-              <button onClick={() => setStep('topic')} className="text-sm text-silver-200 hover:text-gold transition-colors">
+
+            {/* Info note */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+              className="max-w-3xl mx-auto mt-5 px-1">
+              <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-gold/5 border border-gold/15">
+                <Sparkles size={14} className="text-gold shrink-0 mt-0.5" />
+                <p className="text-xs text-silver-200/70 leading-relaxed">
+                  After selecting difficulty, you'll be taken to the <strong className="text-gold">full practice workspace</strong> — AI generates questions, you solve them, upload your answer, and get instant feedback & ranking.
+                </p>
+              </div>
+            </motion.div>
+
+            <div className="text-center mt-5 sm:mt-6">
+              <button onClick={resetToTopic}
+                className="text-sm text-silver-200 hover:text-gold transition-colors">
                 ← Back to topic selection
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* STEP 4: Generating Questions Loading */}
-        {step === 'generating' && (
-          <motion.div
-            key="generating"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center min-h-[50vh] text-center"
-          >
-            <div className="relative mb-8">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                className="w-24 h-24 rounded-full border-t-2 border-r-2 border-gold/40 border-l-2 border-l-transparent absolute -inset-2"
-              />
-              <motion.div
-                animate={{ rotate: -360 }}
-                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                className="w-24 h-24 rounded-full border-b-2 border-gold absolute -inset-2 shadow-[0_0_15px_rgba(201,168,76,0.3)]"
-              />
-              <div className="w-24 h-24 rounded-full bg-dark-200 flex items-center justify-center shadow-inner relative z-10">
-                <Sparkles size={32} className="text-gold animate-pulse" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-bold text-silk mb-2 font-[var(--font-display)] animate-pulse">
-              AI Generating Questions...
-            </h2>
-            <p className="text-silver-200 text-sm max-w-xs mx-auto">
-              Analyzing your selected topic and preparing specialized {selectedDifficulty} level problems.
-            </p>
-          </motion.div>
-        )}
-
-        {/* STEP 5: Question Selection */}
-        {step === 'questions' && (
-          <motion.div
-            key="questions"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="max-w-4xl mx-auto"
-          >
-            <div className="text-center mb-10">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <CheckCircle size={18} className="text-success" />
-                <span className="text-xs font-bold text-success uppercase tracking-[0.2em]">Ready for practice</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-silk font-[var(--font-display)] mb-2">
-                Select a Question to Begin
-              </h2>
-              <p className="text-silver-200 text-sm">Pick the challenge that interests you most</p>
-            </div>
-
-            <div className="space-y-4 mb-8">
-              {generatedQuestions.map((q, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="glass-card p-6 flex flex-col sm:flex-row items-center justify-between gap-6 hover:border-gold/30 transition-all border-white/5 relative group"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded border border-gold/20 font-bold uppercase tracking-widest">{selectedDifficulty}</span>
-                      <span className="text-[10px] text-silver-200 flex items-center gap-1 font-mono uppercase">
-                        <Clock size={10} /> {q.timeLimit} mins
-                      </span>
-                    </div>
-                    <p className="text-silk text-lg font-medium leading-relaxed font-[var(--font-display)]">
-                      {q.question}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleStartPractice(q)}
-                    className="w-full sm:w-auto btn-gold px-8 py-3 whitespace-nowrap shadow-lg shadow-gold/10 group-hover:shadow-gold/20"
-                  >
-                    Solve Now
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-
-            <div className="text-center">
-              <button 
-                onClick={() => setStep('difficulty')} 
-                className="text-sm text-silver-200 hover:text-gold transition-colors"
-                id="back-to-diff-btn"
-              >
-                ← Back to difficulty
               </button>
             </div>
           </motion.div>

@@ -1,0 +1,168 @@
+import { Analytics } from '../models/Analytics.js';
+import { Submission } from '../models/Submission.js';
+import { ApiResponse } from '../utils/ApiResponse.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+
+export const calculateAndStoreAnalytics = async (userId) => {
+    // Fetch all submissions with question details
+    const submissions = await Submission.find({ user: userId }).populate('question');
+
+    if (!submissions.length) {
+        return {
+            overallAccuracy: 0,
+            totalAttempts: 0,
+            topicBreakdown: [],
+            difficultyBreakdown: { Easy: 0, Medium: 0, Hard: 0 },
+            practiceHistory: [],
+            readinessIndex: 0,
+            strongTopics: [],
+            weakTopics: [],
+            streak: 0
+        };
+    }
+
+    // Aggregate Data
+    const totalAttempts = submissions.length;
+    let totalScore = 0;
+    let correctAnswers = 0;
+    const topicStats = {};
+    const difficultyStats = { Easy: { total: 0, correct: 0 }, Medium: { total: 0, correct: 0 }, Hard: { total: 0, correct: 0 } };
+    const historyMap = {};
+
+    submissions.forEach(sub => {
+        totalScore += (sub.score || 0);
+        
+        // Topic Breakdown
+        const topic = sub.question?.topic || 'Uncategorized';
+        if (!topicStats[topic]) topicStats[topic] = { total: 0, correct: 0 };
+        topicStats[topic].total += 1;
+        if (sub.isCorrect) {
+            topicStats[topic].correct += 1;
+            correctAnswers += 1;
+        }
+
+        // Difficulty Breakdown
+        const diff = sub.question?.difficulty || 'Easy';
+        if (difficultyStats[diff]) {
+            difficultyStats[diff].total += 1;
+            if (sub.isCorrect) difficultyStats[diff].correct += 1;
+        }
+
+        // History
+        const date = sub.createdAt.toISOString().split('T')[0];
+        if (!historyMap[date]) historyMap[date] = 0;
+        historyMap[date] += 1;
+    });
+
+    const overallAccuracy = totalAttempts > 0 ? Math.round((correctAnswers / totalAttempts) * 100) : 0;
+    
+    const topicBreakdown = Object.keys(topicStats).map(name => ({
+        name,
+        accuracy: topicStats[name].total > 0 ? Math.round((topicStats[name].correct / topicStats[name].total) * 100) : 0,
+        count: topicStats[name].total
+    }));
+
+    const difficultyBreakdown = {};
+    Object.keys(difficultyStats).forEach(key => {
+        difficultyBreakdown[key] = difficultyStats[key].total > 0 
+            ? Math.round((difficultyStats[key].correct / difficultyStats[key].total) * 100)
+            : 0;
+    });
+
+    const practiceHistory = Object.keys(historyMap).sort().map(date => ({
+        date,
+        questions: historyMap[date],
+        accuracy: 0
+    })).slice(-7);
+
+    // Readiness Index: Combined metric of accuracy and participation
+    const readinessIndex = Math.min(100, Math.round(overallAccuracy * 0.7 + Math.min(totalAttempts * 2, 30)));
+
+    const strongTopics = topicBreakdown.filter(t => t.accuracy >= 80).map(t => t.name);
+    const weakTopics = topicBreakdown.filter(t => t.accuracy < 60).map(t => t.name);
+
+    const analyticsData = {
+        overallAccuracy,
+        totalAttempts,
+        topicBreakdown,
+        difficultyBreakdown,
+        practiceHistory,
+        readinessIndex,
+        strongTopics,
+        weakTopics,
+        streak: Object.keys(historyMap).length
+    };
+
+    // PERSIST TO MONGODB
+    try {
+        await Analytics.findOneAndUpdate(
+            { user: userId },
+            {
+                overallScore: overallAccuracy,
+                totalQuestionsAttempted: totalAttempts,
+                correctAnswers: correctAnswers,
+                weakTopics: weakTopics,
+                strongTopics: strongTopics,
+                readinessIndex: readinessIndex,
+                topicBreakdown: topicBreakdown,
+            },
+            { upsert: true, returnDocument: 'after' }
+        );
+    } catch (dbErr) {
+        console.error("Failed to persist analytics to MongoDB:", dbErr);
+    }
+
+    return analyticsData;
+};
+
+export const getUserAnalytics = asyncHandler(async (req, res) => {
+    const analytics = await calculateAndStoreAnalytics(req.user._id);
+    return res.status(200).json(new ApiResponse(200, analytics, "Analytics fetched and stored successfully"));
+});
+
+
+export const updateAnalytics = asyncHandler(async (req, res) => {
+    // This now just points to the same logic for consistency
+    return getUserAnalytics(req, res);
+});
+
+export const getRiskPrediction = asyncHandler(async (req, res) => {
+    const submissions = await Submission.find({ user: req.user._id });
+    const accuracy = submissions.length > 0 
+        ? (submissions.filter(s => s.isCorrect).length / submissions.length) * 100 
+        : 0;
+    
+    let riskLevel = "High";
+    if (accuracy > 80) riskLevel = "Low";
+    else if (accuracy > 50) riskLevel = "Medium";
+
+    return res.status(200).json(
+        new ApiResponse(200, { riskLevel, probability: Math.max(0, (100 - accuracy) / 100) }, "Risk prediction fetched successfully")
+    );
+});
+
+export const getWeakTopics = asyncHandler(async (req, res) => {
+    const submissions = await Submission.find({ user: req.user._id }).populate('question');
+    const topicStats = {};
+    submissions.forEach(sub => {
+        const topic = sub.question?.topic || 'Uncategorized';
+        if (!topicStats[topic]) topicStats[topic] = { total: 0, correct: 0 };
+        topicStats[topic].total += 1;
+        if (sub.isCorrect) topicStats[topic].correct += 1;
+    });
+
+    const weakTopics = Object.keys(topicStats)
+        .filter(name => (topicStats[name].correct / topicStats[name].total) < 0.6)
+        .map(name => ({ name, accuracy: Math.round((topicStats[name].correct / topicStats[name].total) * 100) }));
+
+    return res.status(200).json(
+        new ApiResponse(200, weakTopics, "Weak topics fetched successfully")
+    );
+});
+
+export const getRecommendations = asyncHandler(async (req, res) => {
+    // Recommend topics with lowest accuracy
+    return res.status(200).json(
+        new ApiResponse(200, ["Mock Topic 1", "Mock Topic 2"], "Recommendations fetched successfully")
+    );
+});

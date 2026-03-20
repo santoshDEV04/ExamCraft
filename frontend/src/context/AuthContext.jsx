@@ -16,11 +16,28 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = authService.getCurrentUser();
-    if (savedUser) {
-      setUser(savedUser);
-    }
-    setLoading(false);
+    const verifySession = async () => {
+      const savedUser = authService.getCurrentUser();
+      if (savedUser) {
+        // Optimistically set from storage
+        setUser(savedUser);
+        
+        try {
+          // Verify with backend
+          const responseBody = await authService.getMe();
+          if (responseBody && responseBody.data) {
+            setUser(responseBody.data);
+          }
+        } catch (error) {
+          console.error("Session verification failed", error);
+          // 401 interceptor will handle redirect, but we clear state here too
+          setUser(null);
+        }
+      }
+      setLoading(false);
+    };
+
+    verifySession();
   }, []);
 
   const login = async (credentials) => {
@@ -62,8 +79,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const updateProfile = async (profileData) => {
-    setLoading(true);
+  const updateProfile = async (profileData, isOptimistic = false) => {
+    if (!isOptimistic) setLoading(true);
     try {
       const responseBody = await authService.updateProfile(profileData);
       if (responseBody && responseBody.data) {
@@ -74,7 +91,7 @@ export const AuthProvider = ({ children }) => {
       console.error("Update Profile Exception:", error.message);
       throw error;
     } finally {
-      setLoading(false);
+      if (!isOptimistic) setLoading(false);
     }
   };
 

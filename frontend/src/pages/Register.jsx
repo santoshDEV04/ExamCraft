@@ -17,6 +17,9 @@ import {
   Sparkles,
   ChevronDown,
   Home,
+  Camera,
+  Upload,
+  X,
 } from 'lucide-react';
 
 const branches = [
@@ -57,6 +60,8 @@ const Register = () => {
     exam_target: '',
     subjects: '',
   });
+  const [avatar, setAvatar] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -66,6 +71,27 @@ const Register = () => {
       setFormData({ ...formData, [name]: value });
     }
     setError('');
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setError('Image size should be less than 2MB');
+        return;
+      }
+      setAvatar(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeAvatar = () => {
+    setAvatar(null);
+    setAvatarPreview(null);
   };
 
   const validateStep1 = () => {
@@ -103,11 +129,19 @@ const Register = () => {
         localStorage.removeItem('examcraft_rem_pass');
       }
 
-      const payload = {
-        ...formData,
-        subjects: formData.subjects.split(',').map((s) => s.trim()).filter(Boolean),
-      };
-      await register(payload);
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.name);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('password', formData.password);
+      formDataToSend.append('branch', formData.branch);
+      formDataToSend.append('exam_target', formData.exam_target);
+      formDataToSend.append('subjects', formData.subjects.split(',').map((s) => s.trim()).filter(Boolean).join(','));
+      
+      if (avatar) {
+        formDataToSend.append('avatar', avatar);
+      }
+
+      await register(formDataToSend);
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
@@ -153,22 +187,22 @@ const Register = () => {
             </div>
 
             <h2 className="text-4xl font-bold text-silk leading-tight mb-4 font-[var(--font-display)]">
-              Start Your Journey
+              Build Your Future
               <br />
-              <span className="text-gradient-gold">To Success</span>
+              <span className="text-gradient-gold">With Confidence</span>
             </h2>
             <p className="text-silver-200 leading-relaxed mb-8">
-              Join thousands of students who are acing their exams with
-              AI-powered preparation, personalized practice sessions, and
-              intelligent performance tracking.
+              Experience the next generation of academic preparation.  
+              AI-powered practice, personalized learning paths, and 
+              intelligent insights to help you master every topic.
             </p>
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
               {[
-                { value: '10K+', label: 'Students' },
-                { value: '50K+', label: 'Questions' },
-                { value: '95%', label: 'Success Rate' },
+                { value: '6', label: 'Students' },
+                { value: '200+', label: 'Questions' },
+                { value: '100%', label: 'Success Rate' },
               ].map((stat, i) => (
                 <motion.div
                   key={stat.label}
@@ -254,6 +288,43 @@ const Register = () => {
                 exit={{ opacity: 0, x: 20 }}
                 className="space-y-4"
               >
+                {/* Avatar Upload */}
+                <div className="flex flex-col items-center justify-center mb-6">
+                  <div className="relative group">
+                    <div className="w-24 h-24 rounded-2xl bg-dark-300 border-2 border-dashed border-dark-500 flex items-center justify-center overflow-hidden transition-all group-hover:border-gold/50">
+                      {avatarPreview ? (
+                        <img src={avatarPreview} alt="Avatar Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={32} className="text-dark-700" />
+                      )}
+                      <label 
+                        htmlFor="avatar-upload"
+                        className="absolute inset-0 bg-dark/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <Camera size={20} className="text-gold mb-1" />
+                        <span className="text-[10px] font-bold text-silk uppercase tracking-wider">Change</span>
+                      </label>
+                    </div>
+                    {avatarPreview && (
+                      <button
+                        type="button"
+                        onClick={removeAvatar}
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-danger text-white flex items-center justify-center shadow-lg hover:bg-danger-light transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <input 
+                    type="file" 
+                    id="avatar-upload" 
+                    className="hidden" 
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                  />
+                  <p className="text-[11px] text-dark-700 mt-2 font-medium">Upload profile picture (optional)</p>
+                </div>
+
                 {/* Name */}
                 <div>
                   <label className="block text-sm font-medium text-silver mb-2" htmlFor="reg-name">

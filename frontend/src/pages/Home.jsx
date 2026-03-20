@@ -1,18 +1,52 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, ArrowRight, Brain, Zap, Target, BookOpen } from 'lucide-react';
+import { GraduationCap, ArrowRight, Brain, Zap, Target, BookOpen, Sparkles } from 'lucide-react';
 import Loader from '../components/Loader';
+import { useAuth } from '../context/AuthContext';
+import sessionService from '../services/sessionService';
+import submissionService from '../services/submissionService';
 
 const Home = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  const { isAuthenticated } = useAuth();
+  const [latestSession, setLatestSession] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsInitialLoading(false);
     }, 2000); // 2 second loader
+    
+    if (isAuthenticated) fetchHomeData();
+    
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAuthenticated]);
+
+  const fetchHomeData = async () => {
+    try {
+      const [sessionsRes, analyticsRes] = await Promise.all([
+        sessionService.getAllSessions(),
+        submissionService.getAnalytics()
+      ]);
+      
+      if (sessionsRes.data && sessionsRes.data.length > 0) {
+        setLatestSession(sessionsRes.data[0]);
+      }
+      setAnalytics(analyticsRes.data);
+    } catch (err) {
+      console.error("Failed to fetch home data", err);
+    }
+  };
+
+  const getDifficultyColor = (diff) => {
+    switch(diff?.toLowerCase()){
+      case 'hard': return '#E74C3C';
+      case 'intermediate': return '#F39C12';
+      default: return '#2ECC71';
+    }
+  };
 
   const features = [
     {
@@ -124,56 +158,111 @@ const Home = () => {
             {/* Abstract Decorative Elements */}
             <div className="absolute inset-0 bg-gold/5 blur-[100px] rounded-full pointer-events-none" />
             
-            {/* Mockup Card */}
-            <div className="relative glass-card border border-white/10 p-6 rounded-2xl shadow-2xl backdrop-blur-2xl bg-dark/40 z-10 overflow-hidden group">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gold/50 via-gold to-gold/50 opacity-50" />
-              
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-sm text-silver">Current Readiness</h3>
-                  <p className="text-3xl font-bold text-silk font-[var(--font-display)] mt-1">0%</p>
-                </div>
-                <div className="w-14 h-14 rounded-full border-[4px] border-white/5 border-t-gold/20 flex items-center justify-center relative">
-                  <span className="text-[10px] font-bold text-silver-200">New</span>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="h-2 rounded-full bg-white/5 overflow-hidden w-full relative">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: '0%' }}
-                    className="absolute top-0 left-0 h-full bg-gold rounded-full" 
-                  />
-                </div>
+            {/* Dynamic Session Card - Primary Hub */}
+            {latestSession ? (
+              <motion.div 
+                layout
+                className="relative glass-card hover:border-gold/25 transition-all group overflow-hidden border border-white/10 p-5 sm:p-8 rounded-2xl shadow-2xl backdrop-blur-2xl bg-dark/40 z-10"
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gold opacity-50" />
                 
-                <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
-                  <div className="bg-white/5 rounded-xl p-3">
-                    <p className="text-[10px] text-silver uppercase mb-1">Strongest Topic</p>
-                    <p className="text-xs text-silver-200 italic font-medium truncate">None yet</p>
+                {/* Session Header */}
+                <div className="flex flex-col xs:flex-row justify-between items-start gap-3 mb-6">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="w-12 h-12 rounded-xl bg-gold/10 flex items-center justify-center shrink-0">
+                      <Zap size={24} className="text-gold" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold text-silver-200 uppercase tracking-[0.2em] mb-1">Latest Activity</p>
+                      <h3 className="text-silk font-bold text-lg sm:text-xl leading-tight group-hover:text-gold transition-colors truncate">
+                        {latestSession.topic}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[9px] font-bold text-silver-200/40 uppercase tracking-widest">{new Date(latestSession.createdAt).toLocaleDateString()}</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+                        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: getDifficultyColor(latestSession.difficulty) }}>{latestSession.difficulty}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-white/5 rounded-xl p-3">
-                    <p className="text-[10px] text-silver uppercase mb-1">Needs Work</p>
-                    <p className="text-xs text-silver-200 italic font-medium truncate">None yet</p>
+                  <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border shrink-0
+                    ${latestSession.status === 'active' ? 'bg-info/10 text-info border-info/20' : 'bg-success/10 text-success border-success/20'}`}>
+                    {latestSession.status}
                   </div>
                 </div>
+
+                {/* Progress Content */}
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-silver-200 uppercase tracking-widest font-bold">Overall Accuracy</span>
+                      <span className="text-sm font-bold text-gold">{Math.round((latestSession.currentScore / (latestSession.totalQuestions * 100)) * 100)}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(latestSession.currentScore / (latestSession.totalQuestions * 100)) * 100}%` }}
+                        className="h-full bg-gold shadow-[0_0_15px_rgba(201,168,76,0.3)]"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/[0.03] p-4 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-silver-200/40 font-bold uppercase mb-1">Solved</p>
+                      <p className="text-sm font-bold text-silk">{latestSession.submissions?.length || 0} / {latestSession.totalQuestions}</p>
+                    </div>
+                    <div className="bg-white/[0.03] p-4 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-silver-200/40 font-bold uppercase mb-1">Avg Score</p>
+                      <p className="text-sm font-bold text-silk">{(latestSession.currentScore / (latestSession.submissions?.length || 1)).toFixed(1)}</p>
+                    </div>
+                  </div>
+
+                  <Link 
+                    to={latestSession.status === 'active' ? '/practice' : '/sessions'}
+                    state={latestSession.status === 'active' ? { sessionId: latestSession._id, resume: true } : undefined}
+                    className="btn-gold w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-sm group/btn shadow-xl shadow-gold/10"
+                  >
+                    {latestSession.status === 'active' ? (
+                      <><Zap size={18} className="animate-pulse" /> Resume Session</>
+                    ) : (
+                      <><Target size={18} /> View Analysis</>
+                    )}
+                    <ArrowRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
+                  </Link>
+                </div>
+              </motion.div>
+            ) : (
+              /* Fallback Mockup for New Users */
+              <div className="relative glass-card border border-white/10 p-5 sm:p-8 rounded-2xl shadow-2xl backdrop-blur-2xl bg-dark/40 z-10 overflow-hidden group">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gold/50 via-gold to-gold/50 opacity-50" />
+                <div className="flex items-center justify-between mb-6 sm:mb-8">
+                  <div>
+                    <p className="text-[10px] font-bold text-silver-200 uppercase tracking-[0.2em] mb-1">Ready to start?</p>
+                    <h3 className="text-lg sm:text-xl font-bold text-silk font-[var(--font-display)]">No sessions yet</h3>
+                  </div>
+                </div>
+                <Link to="/upload-material" className="btn-gold w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-sm">
+                   Get Started <ArrowRight size={16} />
+                </Link>
               </div>
-            </div>
+            )}
             
-            {/* Floating decoration cards */}
-            <motion.div 
-              animate={{ y: [0, -10, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute -right-8 -top-8 glass-card border border-white/10 p-3 rounded-xl shadow-xl z-20 flex items-center gap-3 backdrop-blur-xl bg-dark/60 hidden sm:flex"
-            >
-              <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5">
-                <Target size={14} className="text-silver-200" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-silk text-silver-200">Activity Level</p>
-                <p className="text-[10px] text-silver-200">No attempts yet</p>
-              </div>
-            </motion.div>
+            {/* Detail Floating Elements (Only if analysis exists) */}
+            {analytics && (
+              <motion.div 
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                className="absolute -right-8 -top-8 glass-card border border-white/10 p-4 rounded-xl shadow-xl z-20 flex items-center gap-4 backdrop-blur-xl bg-dark/60 hidden sm:flex"
+              >
+                <div className="w-10 h-10 rounded-lg bg-gold/10 flex items-center justify-center border border-gold/20">
+                  <Brain size={18} className="text-gold" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gold uppercase tracking-tighter">Readiness</p>
+                  <p className="text-lg font-black text-silk">{analytics.readinessIndex}%</p>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
 
         </div>
@@ -211,6 +300,8 @@ const Home = () => {
       <footer className="border-t border-white/5 py-8 text-center bg-dark">
         <p className="text-xs text-silver-200">© 2026 ExamCraftAI. All rights reserved.</p>
       </footer>
+
+      {/* Floating Grade removed - now handled globally by AppLayout in protected routes */}
       </div>
     </>
   );

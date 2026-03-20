@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import FloatingGrade from '../components/FloatingGrade';
 import { SearchProvider } from '../context/SearchContext';
 
 const AppLayout = () => {
@@ -45,6 +46,7 @@ const AppLayout = () => {
           style={{ marginLeft: mainMarginLeft }}
         >
           <Outlet />
+          <FloatingGrade />
         </main>
       </div>
     </SearchProvider>

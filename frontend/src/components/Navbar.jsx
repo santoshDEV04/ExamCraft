@@ -2,13 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { useSearch } from '../context/SearchContext';
 import { getInitials } from '../utils/helpers';
 import {
   Menu,
   X,
-  Search,
-  Bell,
   ChevronDown,
   User,
   Settings,
@@ -19,11 +16,9 @@ import {
 
 const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
   const { user, logout } = useAuth();
-  const { searchQuery, setSearchQuery } = useSearch();
   const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
   const [clockOpen, setClockOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -35,8 +30,8 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
     const paths = {
       '/dashboard': 'Dashboard',
       '/practice': 'Practice',
+      '/sessions': 'Sessions',
       '/practice/session': 'Practice Session',
-      '/upload-solution': 'Upload Solution',
       '/analytics': 'Analytics',
       '/profile': 'Profile',
       '/upload-material': 'Upload Materials',
@@ -111,47 +106,6 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
             )}
           </button>
 
-          {/* Search Toggle Mobile */}
-          <button 
-            onClick={() => setSearchOpen(!searchOpen)}
-            className="p-2 rounded-xl hover:bg-white/5 transition-all flex md:hidden items-center active:scale-95" 
-            id="search-btn-mobile"
-            aria-label="Open Search"
-          >
-            <Search size={22} className="text-silver-200" />
-          </button>
-
-          {/* Search Bar Desktop */}
-          <div className="relative hidden md:flex items-center group">
-            <Search size={16} className="absolute left-3.5 text-silver-200 z-10 pointer-events-none group-focus-within:text-gold transition-colors" />
-            <input 
-              type="text" 
-              placeholder="Search everything..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-silk focus:outline-none focus:border-gold/30 focus:bg-white/[0.08] focus:ring-4 focus:ring-gold/5 transition-all w-48 lg:w-72 placeholder:text-silver-300" 
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 text-silver-300 hover:text-gold transition-colors"
-                aria-label="Clear Search"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          {/* Notifications */}
-          <button 
-            className="p-2 rounded-xl hover:bg-white/5 transition-all relative active:scale-95" 
-            id="notifications-btn"
-            aria-label="View Notifications"
-          >
-            <Bell size={22} className="text-silver-200" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-gold rounded-full border-2 border-dark-100 shadow-[0_0_8px_rgba(201,168,76,0.5)]"></span>
-          </button>
-
           {/* Clock Popover for Mobile */}
           <AnimatePresence>
             {clockOpen && (
@@ -185,8 +139,12 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
               className="flex items-center gap-2.5 p-1.5 md:pl-2 md:pr-3 rounded-xl hover:bg-white/5 transition-colors active:scale-95"
               id="profile-dropdown-trigger"
             >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-dark text-xs font-bold">
-                {getInitials(user?.name)}
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-dark text-xs font-bold overflow-hidden">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  getInitials(user?.name)
+                )}
               </div>
               <span className="text-sm font-medium text-silk hidden md:block max-w-[120px] truncate">
                 {user?.name || 'Student'}
@@ -247,40 +205,6 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
           </div>
         </div>
       </div>
-
-      {/* Mobile Search Dropdown */}
-      <AnimatePresence>
-        {searchOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="md:hidden absolute top-full left-0 right-0 bg-dark-100/95 backdrop-blur-xl border-b border-white/5 p-3 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-40"
-          >
-            <div className="relative flex items-center">
-              <Search size={16} className="absolute left-3 text-silver-200 z-10 pointer-events-none" />
-              <input 
-                autoFocus
-                type="text" 
-                placeholder="Search user, details, everything..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-9 pr-10 text-sm text-silk focus:outline-none focus:border-gold/50 focus:bg-white/10 transition-all placeholder:text-silver-200" 
-              />
-              <button 
-                onClick={() => {
-                  setSearchQuery('');
-                  setSearchOpen(false);
-                }}
-                className="absolute right-2 p-1.5 rounded-full hover:bg-white/10 text-silver-200 transition-colors"
-                id="search-mobile-close"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </nav>
   );
 };
