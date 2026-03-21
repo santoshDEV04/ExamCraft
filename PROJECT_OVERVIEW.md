@@ -42,4 +42,7 @@ The project is divided into three main components that work in harmony:
 2. **OCR Phase**: Multi-tier OCR (Tesseract + AI Layout Refinement) extracts the text.
 3. **Analysis Phase**: The AI identifies the "Academic DNA" (Topics, Difficulty, and Prerequisites).
 4. **Generation Phase**: Personalized MCQs and a Day-by-Day Study Plan are generated.
-5. **Execution**: The student practices with the AI, receiving deep logical feedback on every answer.
+5. **Adaptive Implementation**:
+   - **Challenge Timers**: Each question is assigned a difficulty-based duration (Basic: 3m, Intermediate: 6m, Advanced: 9m).
+   - **Session Lockdown**: If the timer expires, the question is locked to maintain academic integrity, and the AI immediately reveals the correct solution for review.
+6. **Final Execution**: The student practices with the AI, receiving deep logical feedback and performance rankings on every answer.
