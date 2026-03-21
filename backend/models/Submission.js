@@ -12,6 +12,10 @@ const SubmissionSchema = new Schema(
             ref: "Question",
             required: true
         },
+        session: {
+            type: Schema.Types.ObjectId,
+            ref: "Session"
+        },
         userAnswer: {
             type: String,
             required: true

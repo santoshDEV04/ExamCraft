@@ -50,7 +50,8 @@ export const submitAnswer = asyncHandler(async (req, res) => {
         score: evaluation.score,
         feedback: evaluation.feedback,
         stepAnalysis: evaluation.stepAnalysis || [],
-        timeTaken
+        timeTaken,
+        session: sessionId
     });
 
     if (sessionId) {
@@ -151,7 +152,8 @@ export const uploadAnswer = asyncHandler(async (req, res) => {
         score: evaluation.score,
         feedback: evaluation.feedback,
         stepAnalysis: evaluation.stepAnalysis || [],
-        timeTaken: req.body.timeTaken || 0
+        timeTaken: req.body.timeTaken || 0,
+        session: sessionId
     });
 
     if (sessionId) {

@@ -105,7 +105,7 @@ const Dashboard = () => {
     {
       label: 'Grade Rank',
       value: analytics?.overallAccuracy >= 90 ? 'A+' : analytics?.overallAccuracy >= 80 ? 'A' : analytics?.overallAccuracy >= 70 ? 'B+' : analytics?.overallAccuracy >= 60 ? 'B' : 'C',
-      change: 'Academic standing',
+      change: analytics?.currentSessionStats ? `Latest: ${analytics.currentSessionStats.accuracy}%` : 'Academic standing',
       changeType: 'neutral',
       icon: Award,
       color: CHART_COLORS.warning,
@@ -150,11 +150,25 @@ const Dashboard = () => {
 
   const aiFeedback = getAiFeedback();
 
-  const recommendations = analytics?.weakTopics?.length > 0 
-    ? analytics.weakTopics.slice(0, 3).map(t => ({ text: `Focus on improving your skills in ${t}`, priority: 'high', icon: Brain }))
-    : [
-        { text: 'Complete practice sessions to get AI recommendations', priority: 'medium', icon: Brain },
-      ];
+  const recommendations = [];
+  
+  if (analytics?.currentSessionStats) {
+    recommendations.push({
+      text: `Current Session (${analytics.currentSessionStats.topic}): ${analytics.currentSessionStats.solved}/${analytics.currentSessionStats.totalQuestions} solved with ${analytics.currentSessionStats.accuracy}% accuracy`,
+      priority: 'high',
+      icon: Zap
+    });
+  }
+
+  if (analytics?.weakTopics?.length > 0) {
+    analytics.weakTopics.slice(0, 2).forEach(t => {
+      recommendations.push({ text: `Focus on improving your skills in ${t}`, priority: 'medium', icon: Brain });
+    });
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push({ text: 'Complete practice sessions to get AI recommendations', priority: 'medium', icon: Brain });
+  }
 
   const container = {
     hidden: { opacity: 0 },

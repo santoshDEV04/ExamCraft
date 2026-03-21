@@ -5,10 +5,21 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { generateStudyPlanAI } from '../ml-service/mlService.js';
 
 export const calculateAndStoreAnalytics = async (userId) => {
-    // Fetch all submissions with question details
-    const submissions = await Submission.find({ user: userId }).populate('question');
+    // Fetch all submissions with question and session details
+    const submissions = await Submission.find({ user: userId })
+        .populate('question')
+        .populate('session');
 
-    if (!submissions.length) {
+    // Filter out submissions belonging to deleted sessions (or old orphaned ones)
+    const validSubmissions = submissions.filter(sub => !!sub.session);
+
+    // CRITICAL: Cleanup orphans so they don't impact future queries
+    const orphanedIds = submissions.filter(sub => !sub.session).map(sub => sub._id);
+    if (orphanedIds.length > 0) {
+        Submission.deleteMany({ _id: { $in: orphanedIds } }).catch(e => console.error("[Analytics] Orphan cleanup failed:", e));
+    }
+
+    if (!validSubmissions.length) {
         return {
             overallAccuracy: 0,
             totalAttempts: 0,
@@ -23,14 +34,14 @@ export const calculateAndStoreAnalytics = async (userId) => {
     }
 
     // Aggregate Data
-    const totalAttempts = submissions.length;
+    const totalAttempts = validSubmissions.length;
     let totalScore = 0;
     let correctAnswers = 0;
     const topicStats = {};
     const difficultyStats = { Easy: { total: 0, correct: 0 }, Medium: { total: 0, correct: 0 }, Hard: { total: 0, correct: 0 } };
     const historyMap = {};
 
-    submissions.forEach(sub => {
+    validSubmissions.forEach(sub => {
         totalScore += (sub.score || 0);
         
         // Topic Breakdown
@@ -58,7 +69,7 @@ export const calculateAndStoreAnalytics = async (userId) => {
     const overallAccuracy = totalAttempts > 0 ? Math.round((correctAnswers / totalAttempts) * 100) : 0;
     
     const topicBreakdown = Object.keys(topicStats).map(name => {
-        const topicSubmissions = submissions.filter(s => (s.question?.topic || 'Uncategorized') === name);
+        const topicSubmissions = validSubmissions.filter(s => (s.question?.topic || 'Uncategorized') === name);
         const lastActivity = topicSubmissions.length > 0 ? topicSubmissions[topicSubmissions.length - 1].createdAt : new Date(0);
         return {
             name,
@@ -76,7 +87,7 @@ export const calculateAndStoreAnalytics = async (userId) => {
     });
 
     const practiceHistory = Object.keys(historyMap).sort().map(date => {
-        const daySubmissions = submissions.filter(s => s.createdAt.toISOString().split('T')[0] === date);
+        const daySubmissions = validSubmissions.filter(s => s.createdAt.toISOString().split('T')[0] === date);
         const dayCorrect = daySubmissions.filter(s => s.isCorrect).length;
         const count = daySubmissions.length;
         return {
@@ -92,8 +103,7 @@ export const calculateAndStoreAnalytics = async (userId) => {
     const readinessIndex = Math.min(100, Math.round(overallAccuracy * 0.7 + Math.min(totalAttempts * 2, 30)));
 
     // RECENT-BIASED ANALYTICS for Weak Topics and Recommendations
-    // We take either the last 20 submissions or all if less than 20
-    const recentSubmissions = submissions.slice(-20);
+    const recentSubmissions = validSubmissions.slice(-20);
     const recentTopicStats = {};
     recentSubmissions.forEach(sub => {
         const topic = sub.question?.topic || 'Uncategorized';
@@ -111,7 +121,23 @@ export const calculateAndStoreAnalytics = async (userId) => {
     const weakTopics = recentTopicBreakdown.filter(t => t.accuracy < 60).map(t => t.name);
 
     // Identify the very latest topic
-    const latestTopic = submissions[submissions.length - 1]?.question?.topic || 'Uncategorized';
+    const latestTopic = validSubmissions[validSubmissions.length - 1]?.question?.topic || 'Uncategorized';
+    
+    // CURRENT SESSION STATS (Requested by user)
+    const latestSession = validSubmissions[validSubmissions.length - 1]?.session;
+    let currentSessionStats = null;
+    
+    if (latestSession && latestSession.status === 'active') {
+        const sessionSubmissions = validSubmissions.filter(s => s.session?._id.toString() === latestSession._id.toString());
+        currentSessionStats = {
+            topic: latestSession.topic,
+            totalQuestions: latestSession.totalQuestions || 0,
+            solved: sessionSubmissions.length,
+            accuracy: sessionSubmissions.length > 0 
+                ? Math.round((sessionSubmissions.filter(s => s.isCorrect).length / sessionSubmissions.length) * 100)
+                : 0
+        };
+    }
     
     // Ensure latest topic is prominent if it's weak
     let finalWeakTopics = weakTopics;
@@ -138,13 +164,13 @@ export const calculateAndStoreAnalytics = async (userId) => {
         readinessIndex,
         strongTopics,
         weakTopics: finalWeakTopics,
-        streak: Object.keys(historyMap).length,
-        recentActivity: submissions.slice(-6).reverse().map(s => ({
+        recentActivity: validSubmissions.slice(-6).reverse().map(s => ({
             title: s.question?.topic || 'Practice Session',
             date: s.createdAt,
             score: s.score,
             isCorrect: s.isCorrect
-        }))
+        })),
+        currentSessionStats
     };
 
     // PERSIST TO MONGODB
@@ -169,6 +195,12 @@ export const calculateAndStoreAnalytics = async (userId) => {
     return analyticsData;
 };
 
+// Helper for other endpoints to get only valid (session-linked) submissions
+const getValidSubmissions = async (userId) => {
+    const submissions = await Submission.find({ user: userId }).populate('question').populate('session');
+    return submissions.filter(sub => !!sub.session);
+};
+
 export const getUserAnalytics = asyncHandler(async (req, res) => {
     const analytics = await calculateAndStoreAnalytics(req.user._id);
     return res.status(200).json(new ApiResponse(200, analytics, "Analytics fetched and stored successfully"));
@@ -181,7 +213,7 @@ export const updateAnalytics = asyncHandler(async (req, res) => {
 });
 
 export const getRiskPrediction = asyncHandler(async (req, res) => {
-    const submissions = await Submission.find({ user: req.user._id });
+    const submissions = await getValidSubmissions(req.user._id);
     const accuracy = submissions.length > 0 
         ? (submissions.filter(s => s.isCorrect).length / submissions.length) * 100 
         : 0;
@@ -196,7 +228,7 @@ export const getRiskPrediction = asyncHandler(async (req, res) => {
 });
 
 export const getWeakTopics = asyncHandler(async (req, res) => {
-    const submissions = await Submission.find({ user: req.user._id }).populate('question');
+    const submissions = await getValidSubmissions(req.user._id);
     const topicStats = {};
     submissions.forEach(sub => {
         const topic = sub.question?.topic || 'Uncategorized';
@@ -215,7 +247,7 @@ export const getWeakTopics = asyncHandler(async (req, res) => {
 });
 
 export const getRecommendations = asyncHandler(async (req, res) => {
-    const submissions = await Submission.find({ user: req.user._id }).populate('question');
+    const submissions = await getValidSubmissions(req.user._id);
     const topicStats = {};
     submissions.forEach(sub => {
         const topic = sub.question?.topic || 'Uncategorized';

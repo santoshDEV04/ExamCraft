@@ -3,6 +3,7 @@ import { Submission } from '../models/Submission.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
+import { calculateAndStoreAnalytics } from './analyticsController.js';
 
 export const getSessions = asyncHandler(async (req, res) => {
     const sessions = await Session.find({ user: req.user._id })
@@ -75,6 +76,9 @@ export const deleteSession = asyncHandler(async (req, res) => {
     }
 
     await Session.findByIdAndDelete(req.params.id);
+    
+    // Trigger analytics update (async)
+    calculateAndStoreAnalytics(req.user._id).catch(err => console.error("Post-delete analytics update failed:", err));
     
     return res.status(200).json(
         new ApiResponse(200, null, "Session deleted successfully")
