@@ -46,3 +46,28 @@ The project is divided into three main components that work in harmony:
    - **Challenge Timers**: Each question is assigned a difficulty-based duration (Basic: 3m, Intermediate: 6m, Advanced: 9m).
    - **Session Lockdown**: If the timer expires, the question is locked to maintain academic integrity, and the AI immediately reveals the correct solution for review.
 6. **Final Execution**: The student practices with the AI, receiving deep logical feedback and performance rankings on every answer.
+
+---
+
+## 💎 Why ExamCraft AI is Unique?
+Comparing to standard AI tools, ExamCraft AI stands out through:
+- **Academic DNA Awareness**: It doesn't just "summarize"; it identifies topics, evaluates difficulty, and maps prerequisites based on scientific material.
+- **The "Academic Rigor" Timer**: Unlike generic chatbots, we simulate environment-aware practice with difficulty-synced countdowns.
+- **Multi-LLM Resilience**: Our system is provider-agnostic. We use a proprietary fallback strategy (Groq → Gemini → Heuristic) to ensure 99.9% uptime even if a specific AI provider is down.
+- **Zero-Hallucination Grounding**: All questions and study plans are strictly grounded in the *uploaded* material, preventing the AI from introducing irrelevant external info.
+
+---
+
+## 🛠️ Handling Multiple Users & Reliability (Scalability Roadmap)
+To handle a large volume of registered users and ensure the server never "crashes" under pressure, we recommend the following professional stack:
+
+### 1. High Availability (Server Reliability)
+- **Process Manager (PM2)**: Use PM2 to keep the Node.js backend alive. If a process crashes, PM2 restarts it instantly.
+- **Nginx Reverse Proxy**: Acts as a shield and load balancer, distributing traffic across multiple backend instances.
+- **Health Checks**: Automated monitoring that alerts if the ML-Service or Backend is slow or unresponsive.
+
+### 2. Scalability (Handling 10,000+ Users)
+- **Containerization (Docker + Kubernetes)**: Wrap services in containers to spin up new instances automatically during peak exam seasons.
+- **Redis Caching**: Store frequent AI results in a global cache so the AI doesn't have to re-process the same content multiple times.
+- **Database Sharding (MongoDB Atlas)**: Distribute data across multiple servers so no single database becomes a bottleneck.
+- **Async Processing (BullMQ / RabbitMQ)**: Handle heavy PDF/Image processing in the background so the user interface remains lightning-fast.
