@@ -257,17 +257,6 @@ export default function UploadMaterial() {
     }
   }, [solveMode, timeLeft]);
 
-  const handleTimerExpired = async () => {
-    if (sessionId) {
-      try {
-        await sessionService.deleteSession(sessionId);
-      } catch (err) {
-        console.error("Failed to delete expired session", err);
-      }
-    }
-    alert("⏱️ Session Cancelled! The practice timer has expired. To maintain academic rigor, you must re-upload your material to start a fresh session.");
-    resetAll();
-  };
 
   const fmt = (s) => {
     if (s === null) return '--:--:--';
@@ -493,6 +482,14 @@ export default function UploadMaterial() {
       
     } catch (err) {
       console.error("Failed to record solution view", err);
+    }
+  };
+
+  const handleTimerExpired = async () => {
+    if (pickedQ) {
+       // Lock the question and show solution
+       handleViewSolution(pickedQ._id || pickedQ.id, pickedQ.correctAnswer);
+       alert("⏱️ Time is up! This question has been locked to maintain academic integrity. You can review the correct solution, but you can no longer submit an answer for it.");
     }
   };
 
