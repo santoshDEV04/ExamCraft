@@ -2,6 +2,7 @@ import { Analytics } from '../models/Analytics.js';
 import { Submission } from '../models/Submission.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { generateStudyPlanAI } from '../ml-service/mlService.js';
 
 export const calculateAndStoreAnalytics = async (userId) => {
     // Fetch all submissions with question details
@@ -77,10 +78,13 @@ export const calculateAndStoreAnalytics = async (userId) => {
     const practiceHistory = Object.keys(historyMap).sort().map(date => {
         const daySubmissions = submissions.filter(s => s.createdAt.toISOString().split('T')[0] === date);
         const dayCorrect = daySubmissions.filter(s => s.isCorrect).length;
+        const count = daySubmissions.length;
         return {
             date,
-            attempts: daySubmissions.length,
-            accuracy: Math.round((dayCorrect / daySubmissions.length) * 100)
+            attempts: count,
+            correct: dayCorrect,
+            incorrect: Math.max(0, count - dayCorrect),
+            accuracy: Math.round((dayCorrect / count) * 100)
         };
     }).slice(-7);
 
@@ -233,4 +237,56 @@ export const getRecommendations = asyncHandler(async (req, res) => {
     return res.status(200).json(
         new ApiResponse(200, recommendations, "Recommendations fetched successfully")
     );
+});
+
+export const saveStudyPlan = asyncHandler(async (req, res) => {
+    const { studyPlan } = req.body;
+    const analytics = await Analytics.findOneAndUpdate(
+        { user: req.user._id },
+        { studyPlan },
+        { returnDocument: 'after', upsert: true }
+    );
+    return res.status(200).json(new ApiResponse(200, analytics.studyPlan, "Study plan saved successfully"));
+});
+
+export const generateStudyPlan = asyncHandler(async (req, res) => {
+    const { topics, numDays } = req.body;
+    let topicsToUse = [];
+
+    if (topics && Array.isArray(topics) && topics.length > 0) {
+        topicsToUse = topics;
+    } else {
+        const analytics = await calculateAndStoreAnalytics(req.user._id);
+        topicsToUse = (analytics.weakTopics && analytics.weakTopics.length > 0) 
+            ? analytics.weakTopics 
+            : ["General Review", "Time Management", "Practice Tests"];
+    }
+    
+    const duration = numDays || 7;
+    let plan = await generateStudyPlanAI(topicsToUse, duration);
+
+    if (!plan || !Array.isArray(plan)) {
+        // Ultimate fallback if even AI Service fallback fails
+        plan = [];
+        for (let i = 1; i <= duration; i++) {
+            const topic = topicsToUse[(i - 1) % topicsToUse.length];
+            plan.push({
+                day: i,
+                topic,
+                task: `Review and practice ${topic} concepts.`,
+                isCompleted: false
+            });
+        }
+    } else {
+        // Ensure isCompleted is set for all items
+        plan = plan.map(item => ({ ...item, isCompleted: !!item.isCompleted }));
+    }
+
+    const updatedAnalytics = await Analytics.findOneAndUpdate(
+        { user: req.user._id },
+        { studyPlan: plan },
+        { returnDocument: 'after', upsert: true }
+    );
+
+    return res.status(200).json(new ApiResponse(200, updatedAnalytics.studyPlan, "Study plan generated successfully"));
 });

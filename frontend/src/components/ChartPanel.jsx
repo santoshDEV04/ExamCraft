@@ -39,31 +39,64 @@ const ChartPanel = ({ title, subtitle, type = 'area', data, dataKeys, colors, he
       case 'area':
         return (
           <ResponsiveContainer width="100%" height={height}>
-            <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+            <LineChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: -10 }}>
               <defs>
                 {(dataKeys || ['value']).map((key, i) => (
                   <linearGradient key={key} id={`gradient-${key}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={chartColors[i % chartColors.length]} stopOpacity={0.3} />
+                    <stop offset="5%" stopColor={chartColors[i % chartColors.length]} stopOpacity={0.4} />
                     <stop offset="95%" stopColor={chartColors[i % chartColors.length]} stopOpacity={0} />
                   </linearGradient>
                 ))}
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="name" tick={{ fill: '#808080', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#808080', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: '#606060', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#606060', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }} />
+              
               {(dataKeys || ['value']).map((key, i) => (
                 <Area
-                  key={key}
+                  key={`area-${key}`}
+                  type="monotone"
+                  dataKey={key}
+                  stroke="none"
+                  fill={`url(#gradient-${key})`}
+                  fillOpacity={1}
+                />
+              ))}
+              
+              {(dataKeys || ['value']).map((key, i) => (
+                <Line
+                  key={`line-${key}`}
                   type="monotone"
                   dataKey={key}
                   stroke={chartColors[i % chartColors.length]}
-                  strokeWidth={2}
-                  fill={`url(#gradient-${key})`}
+                  strokeWidth={3}
+                  dot={{ 
+                    r: 4, 
+                    fill: chartColors[i % chartColors.length], 
+                    stroke: '#121212', 
+                    strokeWidth: 2,
+                    filter: 'url(#glow)'
+                  }}
+                  activeDot={{ 
+                    r: 7, 
+                    fill: '#fff', 
+                    stroke: chartColors[i % chartColors.length], 
+                    strokeWidth: 3,
+                    filter: 'url(#glow)'
+                  }}
                   name={key.charAt(0).toUpperCase() + key.slice(1)}
+                  animationDuration={1500}
                 />
               ))}
-            </AreaChart>
+            </LineChart>
           </ResponsiveContainer>
         );
 

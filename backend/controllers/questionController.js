@@ -300,7 +300,7 @@ export const processMaterial = asyncHandler(async (req, res) => {
                         status: "active", // Reactivate if it was completed
                         lastAccessedAt: Date.now()
                     },
-                    { new: true }
+                    { returnDocument: 'after' }
                 );
                 
                 return res.status(200).json(

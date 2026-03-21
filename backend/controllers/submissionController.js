@@ -9,10 +9,17 @@ import { uploadToImageKit } from '../services/imageKitService.js';
 import { calculateAndStoreAnalytics } from './analyticsController.js';
 
 export const submitAnswer = asyncHandler(async (req, res) => {
-    const { questionId, userAnswer, timeTaken } = req.body;
+    const { questionId, userAnswer, timeTaken, sessionId } = req.body;
 
     if (!questionId || userAnswer === undefined) {
         throw new ApiError(400, "Question ID and User Answer are required");
+    }
+
+    if (sessionId) {
+        const session = await Session.findById(sessionId);
+        if (session && session.viewedSolutions.includes(questionId)) {
+            throw new ApiError(403, "You have already viewed the solution for this question. No further attempts are allowed.");
+        }
     }
 
     const question = await Question.findById(questionId);
@@ -46,8 +53,6 @@ export const submitAnswer = asyncHandler(async (req, res) => {
         timeTaken
     });
 
-    // Link to Session if provided
-    const { sessionId } = req.body;
     if (sessionId) {
         const update = {
             $push: { submissions: submission._id },
@@ -85,9 +90,16 @@ export const uploadAnswer = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Solution file is required");
     }
 
-    const { questionId } = req.body;
+    const { questionId, sessionId } = req.body;
     if (!questionId) {
         throw new ApiError(400, "Question ID is required");
+    }
+
+    if (sessionId) {
+        const session = await Session.findById(sessionId);
+        if (session && session.viewedSolutions.includes(questionId)) {
+            throw new ApiError(403, "You have already viewed the solution for this question. No further attempts are allowed.");
+        }
     }
 
     let extractedAnswer = "";
@@ -142,8 +154,6 @@ export const uploadAnswer = asyncHandler(async (req, res) => {
         timeTaken: req.body.timeTaken || 0
     });
 
-    // Link to Session if provided
-    const { sessionId } = req.body;
     if (sessionId) {
         const update = {
             $push: { submissions: submission._id },

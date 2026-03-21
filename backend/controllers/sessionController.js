@@ -108,3 +108,32 @@ export const toggleBookmark = asyncHandler(async (req, res) => {
         new ApiResponse(200, session.bookmarks, "Bookmark toggled successfully")
     );
 });
+
+export const viewSolution = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { questionId } = req.body;
+
+    if (!questionId) {
+        throw new ApiError(400, "Question ID is required");
+    }
+
+    const session = await Session.findById(id);
+
+    if (!session) {
+        throw new ApiError(404, "Session not found");
+    }
+
+    if (session.user.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "Unauthorized");
+    }
+
+    // Add to viewedSolutions if not already there
+    if (!session.viewedSolutions.includes(questionId)) {
+        session.viewedSolutions.push(questionId);
+        await session.save();
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, session.viewedSolutions, "Solution view recorded successfully")
+    );
+});

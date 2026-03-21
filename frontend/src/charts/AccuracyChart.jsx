@@ -10,8 +10,8 @@ const AccuracyChart = ({ data }) => {
       subtitle="Your performance over time"
       type="line"
       data={chartData}
-      dataKeys={['accuracy', 'attempts']}
-      colors={[CHART_COLORS.gold, CHART_COLORS.info]}
+      dataKeys={['accuracy']}
+      colors={[CHART_COLORS.gold]}
       height={280}
     />
   );

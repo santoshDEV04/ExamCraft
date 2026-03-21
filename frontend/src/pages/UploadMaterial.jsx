@@ -115,7 +115,7 @@ export default function UploadMaterial() {
   const [detectedTopics, setDetectedTopics] = useState([]);
   const [extractedText,  setExtractedText]  = useState('');
   
-  const [selectedTopic,  setSelectedTopic]  = useState('');
+  const [selectedTopics, setSelectedTopics] = useState([]);
   const [customTopic,    setCustomTopic]    = useState('');
   const [topicPrereqs,   setTopicPrereqs]   = useState([]);
   
@@ -140,7 +140,12 @@ export default function UploadMaterial() {
 
   const [bookmarks,      setBookmarks]      = useState([]); // Question IDs
   const [solvedQIds,     setSolvedQIds]     = useState([]); // Question IDs
+  const [viewedSolutions, setViewedSolutions] = useState([]); // Question IDs
+  const [viewingSol,      setViewingSol]     = useState(null); // { id, text } or null
   const [sessionData,    setSessionData]    = useState(null); // Full session object on finish
+
+  // Derived state to fix reference errors
+  const selectedTopic = selectedTopics[0] || 'General Topic';
 
   const fileInputRef = useRef(null);
   const solFileRef   = useRef(null);
@@ -156,7 +161,7 @@ export default function UploadMaterial() {
   }, [routeState]);
 
   const handlePracticeStart = async (topic, diff) => {
-    setSelectedTopic(topic);
+    setSelectedTopics([topic]);
     setDifficulty(diff);
     setGenerating(true);
     setStep(5);
@@ -193,7 +198,7 @@ export default function UploadMaterial() {
       const s = res.data;
       setSessionId(s._id);
       setMaterialId(s.studyMaterial?._id);
-      setSelectedTopic(s.topic);
+      setSelectedTopics(Array.isArray(s.topic) ? s.topic : (s.topic?.includes(',') ? s.topic.split(',').map(t => t.trim()) : [s.topic]));
       setDifficulty(s.difficulty);
       
       const mappedQs = s.questions.map(q => ({
@@ -211,6 +216,17 @@ export default function UploadMaterial() {
       }
       if (s.bookmarks) {
         setBookmarks(s.bookmarks);
+      }
+      if (s.viewedSolutions) {
+        setViewedSolutions(s.viewedSolutions.map(v => v._id || v));
+      }
+
+      // Direct navigation to Analysis if requested
+      if (routeState.showAnalysis) {
+        setSessionData(s);
+        setStep(7);
+      } else {
+        setStep(5);
       }
     } catch (err) {
       console.error("Resume failed", err);
@@ -297,23 +313,31 @@ export default function UploadMaterial() {
   const canUpload = (uploadKind !== 'syllabus' && files.length > 0)
                  || (uploadKind === 'syllabus' && textInput.trim().length > 0);
 
-  const confirmTopic = async (t) => {
-    const topic = t || customTopic.trim();
-    if (!topic) return;
-    setSelectedTopic(topic);
+  const toggleTopic = (t) => {
+    setSelectedTopics(prev => 
+      prev.includes(t) ? prev.filter(i => i !== t) : [...prev, t]
+    );
+  };
+
+  const confirmTopicsSelection = async () => {
+    const topics = selectedTopics.length > 0 ? selectedTopics : (customTopic.trim() ? [customTopic.trim()] : []);
+    if (topics.length === 0) return;
     
-    try {
-      const response = await questionService.getPrerequisites(topic);
-      if (response && response.data && response.data.length > 0) {
-        setTopicPrereqs(response.data);
-        setStep(3);
-      } else {
-        setStep(4);
+    // For prerequisites, we'll just check the first one or a combined list if the backend supports it.
+    // Given the current backend, we'll fetch for the first one for now, or just skip to difficulty for multiple.
+    if (topics.length === 1) {
+      try {
+        const response = await questionService.getPrerequisites(topics[0]);
+        if (response && response.data && response.data.length > 0) {
+          setTopicPrereqs(response.data);
+          setStep(3);
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to fetch prerequisites", err);
       }
-    } catch (err) {
-      console.error("Failed to fetch prerequisites", err);
-      setStep(4);
     }
+    setStep(4);
   };
 
   /* ── Step-4 handlers ── */
@@ -322,7 +346,8 @@ export default function UploadMaterial() {
     setGenerating(true);
     setStep(5);
     try {
-      const response = await questionService.processMaterial(materialId, diff, questionCount, selectedTopic);
+      const topicString = selectedTopics.join(', ');
+      const response = await questionService.processMaterial(materialId, diff, questionCount, topicString);
       console.log("[Client] Process Response:", response);
 
       const payload = response.data || response;
@@ -351,7 +376,8 @@ export default function UploadMaterial() {
     if (loadingMore) return;
     setLoadingMore(true);
     try {
-      const response = await questionService.processMaterial(materialId, difficulty, 5, selectedTopic, sessionId);
+      const topicString = selectedTopics.join(', ');
+      const response = await questionService.processMaterial(materialId, difficulty, 5, topicString, sessionId);
       const payload = response.data || response;
       const newQuestions = (payload.questions || []).map((q, idx) => ({
         ...q,
@@ -431,10 +457,28 @@ export default function UploadMaterial() {
     }
   };
 
+  const handleViewSolution = async (qId, solText) => {
+    if (!sessionId) return;
+    try {
+      if (viewedSolutions.includes(qId)) {
+        setViewingSol({ id: qId, text: solText });
+        return;
+      }
+      
+      const res = await sessionService.viewSolution(sessionId, qId);
+      // res.data is the updated viewedSolutions array
+      setViewedSolutions(res.data);
+      setViewingSol({ id: qId, text: solText });
+      
+    } catch (err) {
+      console.error("Failed to record solution view", err);
+    }
+  };
+
   /* ── Full reset ── */
   const resetAll = () => {
     setStep(1); setFiles([]); setTextInput(''); setDetectedTopics([]);
-    setSelectedTopic(''); setCustomTopic(''); setDifficulty('');
+    setSelectedTopics([]); setCustomTopic(''); setDifficulty('');
     setQuestions([]); setPickedQ(null); setGenerating(false);
     setSolveMode(false); setInputMode('upload'); setPlainText('');
     setSolFile(null); setSubmitting(false); setScore(null);
@@ -624,15 +668,21 @@ export default function UploadMaterial() {
                 </h3>
               </div>
               <div className="flex flex-wrap gap-2 sm:gap-2.5">
-                {detectedTopics.map((t, i) => (
-                  <motion.button key={t}
-                    initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    onClick={() => confirmTopic(t)}
-                    className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border text-xs sm:text-sm font-medium transition-all active:scale-95 bg-gold/8 text-gold border-gold/20 hover:bg-gold/18 hover:border-gold/45">
-                    <Layers size={12} /> {t}
-                  </motion.button>
-                ))}
+                {detectedTopics.map((t, i) => {
+                  const isSelected = selectedTopics.includes(t);
+                  return (
+                    <motion.button key={t}
+                      initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.05 }}
+                      onClick={() => toggleTopic(t)}
+                      className={`flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border text-xs sm:text-sm font-medium transition-all active:scale-95 
+                        ${isSelected 
+                          ? 'bg-gold text-dark border-gold shadow-[0_0_15px_rgba(201,168,76,0.3)]' 
+                          : 'bg-gold/8 text-gold border-gold/20 hover:bg-gold/18 hover:border-gold/45'}`}>
+                      <Layers size={12} /> {t}
+                    </motion.button>
+                  );
+                })}
               </div>
             </div>
 
@@ -640,24 +690,47 @@ export default function UploadMaterial() {
             <div className="glass-card p-4 sm:p-5 border border-white/8 mb-4">
               <div className="flex items-center gap-2 mb-3">
                 <PenLine size={14} className="text-gold" />
-                <p className="text-xs sm:text-sm font-semibold text-silk">Or enter a custom topic</p>
+                <p className="text-xs sm:text-sm font-semibold text-silk">Or add a custom topic</p>
               </div>
-              <div className="relative mb-3">
-                <input type="text" value={customTopic}
-                  onChange={e => setCustomTopic(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && confirmTopic()}
-                  placeholder="e.g. Quantum Mechanics, Machine Learning…"
-                  className="w-full bg-dark-200/60 border border-white/8 rounded-xl px-4 py-3 text-silk text-sm placeholder-silver-200/30 outline-none focus:border-gold/50 transition-all pr-8" />
-                {customTopic && (
-                  <button onClick={() => setCustomTopic('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-silver-200/40 hover:text-silver-200">
-                    <X size={13} />
-                  </button>
-                )}
+              <div className="flex gap-2 mb-3">
+                <div className="relative flex-1">
+                  <input type="text" value={customTopic}
+                    onChange={e => setCustomTopic(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && customTopic.trim() && (toggleTopic(customTopic.trim()), setCustomTopic(''))}
+                    placeholder="e.g. Quantum Mechanics, Machine Learning…"
+                    className="w-full bg-dark-200/60 border border-white/8 rounded-xl px-4 py-3 text-silk text-sm placeholder-silver-200/30 outline-none focus:border-gold/50 transition-all pr-8" />
+                  {customTopic && (
+                    <button onClick={() => setCustomTopic('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-silver-200/40 hover:text-silver-200">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                <button 
+                  onClick={() => { if(customTopic.trim()) { toggleTopic(customTopic.trim()); setCustomTopic(''); } }}
+                  disabled={!customTopic.trim()}
+                  className="px-4 rounded-xl bg-gold/10 border border-gold/20 text-gold hover:bg-gold/20 transition-all disabled:opacity-30">
+                  <Plus size={18} />
+                </button>
               </div>
-              <button onClick={() => confirmTopic()} disabled={!customTopic.trim()}
+
+              {selectedTopics.length > 0 && (
+                <div className="mb-4 flex flex-wrap gap-2 p-3 bg-white/5 rounded-xl border border-white/5">
+                  <p className="w-full text-[10px] font-bold text-silver-200/40 uppercase tracking-widest mb-1">Selected Topics:</p>
+                  {selectedTopics.map(t => (
+                    <div key={t} className="flex items-center gap-1.5 px-2 py-1 bg-gold/20 text-gold rounded-lg text-xs font-bold border border-gold/20">
+                      {t}
+                      <X size={10} className="hover:text-silk cursor-pointer" onClick={() => toggleTopic(t)} />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button onClick={confirmTopicsSelection} disabled={selectedTopics.length === 0 && !customTopic.trim()}
                 className="w-full btn-gold py-2.5 sm:py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed">
-                <ChevronRight size={14} /> Practice This Topic
+                {selectedTopics.length > 0 
+                  ? `Continue with ${selectedTopics.length} Topic${selectedTopics.length > 1 ? 's' : ''}` 
+                  : 'Practice This Topic'} <ChevronRight size={14} />
               </button>
             </div>
 
@@ -696,7 +769,7 @@ export default function UploadMaterial() {
                 <AlertTriangle size={24} className="text-warning" />
               </div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gold/10 border border-gold/20 mb-5 mx-auto flex justify-center">
-                <span className="text-xs sm:text-sm font-bold text-gold">{selectedTopic}</span>
+                <span className="text-xs sm:text-sm font-bold text-gold">{selectedTopics.join(' + ')}</span>
               </div>
 
               <p className="text-xs sm:text-sm font-semibold text-silk mb-4 flex items-center gap-2">
@@ -774,7 +847,7 @@ export default function UploadMaterial() {
                     value={questionCount}
                     onChange={(e) => setQuestionCount(parseInt(e.target.value))}
                     className="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer z-20 
-                               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-8 [&::-webkit-slider-thumb]:h-8 
+                               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-10 [&::-webkit-slider-thumb]:h-10 sm:[&::-webkit-slider-thumb]:w-8 sm:[&::-webkit-slider-thumb]:h-8 
                                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-gold [&::-webkit-slider-thumb]:border-[5px] 
                                [&::-webkit-slider-thumb]:border-dark-100 [&::-webkit-slider-thumb]:shadow-[0_0_20px_rgba(201,168,76,0.8)]
                                [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-110
@@ -892,19 +965,27 @@ export default function UploadMaterial() {
 
                 <div className="space-y-3 sm:space-y-4 mb-8">
                   {questions.map((q, i) => {
-                    const isSolved = solvedQIds.includes(q._id || q.id);
-                    const isBookmarked = bookmarks.includes(q._id || q.id);
+                    const qId = q._id || q.id;
+                    const isSolved = solvedQIds.includes(qId);
+                    const isBookmarked = bookmarks.includes(qId);
+                    const isLocked = viewedSolutions.includes(qId);
                     
                     return (
                       <motion.div key={q.id}
                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.09 }}
                         className={`glass-card p-4 sm:p-5 border transition-all group relative overflow-hidden
-                          ${isSolved ? 'border-success/30 bg-success/5' : 'border-white/5 hover:border-gold/25'}`}>
+                          ${isLocked ? 'border-danger/20 bg-danger/5 opacity-80' : isSolved ? 'border-success/30 bg-success/5' : 'border-white/5 hover:border-gold/25'}`}>
                         
-                        {isSolved && (
+                        {isLocked ? (
                           <div className="absolute top-0 right-0">
-                            <div className="bg-success text-dark text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest shadow-lg flex items-center gap-1.5">
+                            <div className="bg-danger text-silk text-[8px] sm:text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest shadow-lg flex items-center gap-1.5">
+                              <Shield size={10} strokeWidth={3} /> Locked (Solution Viewed)
+                            </div>
+                          </div>
+                        ) : isSolved && (
+                          <div className="absolute top-0 right-0">
+                            <div className="bg-success text-dark text-[8px] sm:text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest shadow-lg flex items-center gap-1.5">
                               <Check size={12} strokeWidth={3} /> Solved
                             </div>
                           </div>
@@ -917,15 +998,15 @@ export default function UploadMaterial() {
                           </span>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                           <p className={`text-sm sm:text-base font-medium leading-relaxed font-[var(--font-display)] flex-1
-                            ${isSolved ? 'text-silk/60' : 'text-silk'}`}>
+                            ${isLocked || isSolved ? 'text-silk/60' : 'text-silk'}`}>
                             {q.text}
                           </p>
                           
                           <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
                              <button
-                               onClick={() => toggleBookmark(q._id || q.id)}
+                               onClick={() => toggleBookmark(qId)}
                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border
                                  ${isBookmarked 
                                    ? 'bg-gold text-dark border-gold shadow-[0_0_15px_rgba(201,168,76,0.4)]' 
@@ -935,12 +1016,20 @@ export default function UploadMaterial() {
                              </button>
 
                              <button
-                               onClick={() => { setPickedQ(q); setSolveMode(true); setTimeLeft(q.time * 60); }}
-                               className={`btn-gold px-4 sm:px-6 py-2.5 flex items-center justify-center gap-2 text-sm active:scale-95
-                                 ${isSolved ? 'opacity-70 hover:opacity-100' : ''}`}>
-                               <UploadCloud size={15} /> 
-                               <span className="hidden xs:inline">{isSolved ? 'Solve Again' : 'Upload Solution'}</span>
-                               <span className="xs:hidden">{isSolved ? 'Retry' : 'Solve'}</span>
+                               onClick={() => { 
+                                 if (isLocked) {
+                                   alert("You have already viewed the solution for this question. It cannot be re-attempted for fair practice.");
+                                   return;
+                                 }
+                                 setPickedQ(q); 
+                                 setSolveMode(true); 
+                                 setTimeLeft(q.time * 60); 
+                               }}
+                               disabled={isLocked}
+                               className={`btn-gold px-4 sm:px-6 py-2.5 flex items-center justify-center gap-2 text-sm active:scale-95 transition-all
+                                 ${isLocked ? 'opacity-30 grayscale cursor-not-allowed' : isSolved ? 'opacity-70 hover:opacity-100' : ''}`}>
+                               {isLocked ? <Shield size={15} /> : <UploadCloud size={15} />} 
+                               <span className="xs:inline">{isLocked ? 'Locked' : isSolved ? 'Solve Again' : 'Upload Solution'}</span>
                              </button>
                           </div>
                         </div>
@@ -948,7 +1037,7 @@ export default function UploadMaterial() {
                     );
                   })}
                   
-                  <div className="flex flex-col md:flex-row gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <motion.button
                       whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
                       onClick={loadMoreQuestions}
@@ -1044,16 +1133,16 @@ export default function UploadMaterial() {
                 </div>
 
                 {/* Solution upload card */}
-                <div className="glass-card overflow-hidden border border-white/8">
+                <div className="glass-card overflow-hidden border border-white/8 relative">
                   {/* Card header */}
                   <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <span className="text-xs sm:text-sm font-semibold text-silk flex items-center gap-2">
                       <Award size={14} className="text-gold" /> Submit Your Solution
                     </span>
-                    <div className="flex bg-dark-300 rounded-lg p-0.5 gap-0.5 border border-white/5">
+                    <div className="flex bg-dark-300 rounded-lg p-0.5 gap-0.5 border border-white/5 w-full sm:w-auto">
                       {[['upload','Upload File'],['text','Write Text']].map(([m, label]) => (
                         <button key={m} onClick={() => setInputMode(m)}
-                          className={`px-2.5 sm:px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all
+                          className={`flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all
                             ${inputMode === m ? 'bg-gold text-dark shadow' : 'text-silver-200 hover:text-silk'}`}>
                           {label}
                         </button>
@@ -1062,6 +1151,51 @@ export default function UploadMaterial() {
                   </div>
 
                   <div className="p-4 sm:p-6 lg:p-8">
+                    {/* Fair Attempt Warning */}
+                    <div className="mb-6 p-4 rounded-xl bg-gold/5 border border-gold/10 flex items-start gap-3">
+                      <Shield size={16} className="text-gold shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-silk mb-1">Fair Attempt Policy</p>
+                        <p className="text-[10px] sm:text-xs text-silver-200/70 leading-relaxed">
+                          Once you view the AI solution, this question will be <span className="text-gold font-bold">permanently locked</span> for submission to ensure honest practice.
+                        </p>
+                        <button 
+                          onClick={() => {
+                            if (window.confirm("Are you sure? Viewing the solution will permanently lock this question from further attempts.")) {
+                              handleViewSolution(pickedQ._id || pickedQ.id, pickedQ.correctAnswer);
+                            }
+                          }}
+                          className="mt-3 text-[10px] font-black text-gold uppercase tracking-widest hover:underline flex items-center gap-2">
+                          <Brain size={12} /> View AI Solution Now
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* SOLUTION PREVIEW (LOCKED) */}
+                    <AnimatePresence>
+                      {viewingSol && viewingSol.id === (pickedQ._id || pickedQ.id) && (
+                        <motion.div 
+                          initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                          className="mb-6 p-5 rounded-2xl bg-dark-400 border border-success/30 shadow-lg shadow-success/5 overflow-hidden">
+                          <div className="flex items-center gap-2 mb-3">
+                            <CheckCircle size={14} className="text-success" />
+                            <h5 className="text-[10px] font-black text-silver-200 uppercase tracking-widest">Correct Solution (Locked)</h5>
+                          </div>
+                          <p className="text-xs sm:text-sm text-silk leading-relaxed font-monospace bg-black/20 p-4 rounded-xl border border-white/5">
+                            {viewingSol.text || "Solution details not available."}
+                          </p>
+                          <p className="text-[9px] text-danger/60 mt-3 font-bold uppercase tracking-tighter">
+                            Note: This question is now locked. You cannot submit an answer for it.
+                          </p>
+                          <button 
+                            onClick={() => { setSolveMode(false); setPickedQ(null); setViewingSol(null); }}
+                            className="mt-4 w-full py-2 bg-white/5 hover:bg-white/10 text-silk text-[10px] font-bold uppercase tracking-widest rounded-lg border border-white/5 transition-all">
+                            Back to Question List
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     {inputMode === 'upload' ? (
                       <div
                         onDrop={handleSolDrop}
@@ -1104,6 +1238,10 @@ export default function UploadMaterial() {
                     ) : (
                       <div className="relative">
                         <textarea value={plainText} onChange={e => setPlainText(e.target.value)}
+                          onPaste={(e) => {
+                            e.preventDefault();
+                            alert("Pasting is disabled for this session to ensure honest practice. Please type your reasoning step-by-step.");
+                          }}
                           placeholder="Write your step-by-step solution here…"
                           className="w-full h-52 sm:h-64 lg:h-72 bg-dark-300 border border-white/10 rounded-2xl p-4 sm:p-6 text-silk text-sm font-light focus:outline-none focus:border-gold/30 transition-all resize-none placeholder-silver-200/25 leading-relaxed" />
                         <div className="absolute bottom-3 right-4 text-[10px] text-silver-200/40 font-mono">
@@ -1335,21 +1473,6 @@ export default function UploadMaterial() {
                   {loadingMore ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}                   Add More Questions
                 </button>
               )}
-
-              <button
-                onClick={() => {
-                  setScore(null);
-                  setSubmitting(false);
-                  setPlainText('');
-                  setSolFile(null);
-                  setTimeLeft(null);
-                  setSolveMode(true);
-                  setStep(5);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="btn-dark flex-1 py-3 sm:py-3.5 flex items-center justify-center gap-2 text-xs sm:text-sm active:scale-95 transition-all border border-white/10 hover:border-gold/30">
-                <RotateCcw size={14} /> Retry Question
-              </button>
 
               {sessionId && questions.every(q => solvedQIds.includes(q.id || q._id)) && (
                  <button

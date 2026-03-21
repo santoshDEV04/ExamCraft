@@ -121,7 +121,7 @@ export const logoutUser = asyncHandler(async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
         user._id,
         { refreshToken: undefined },
-        { new: true }
+        { returnDocument: 'after' }
     );
 
     const options = {
@@ -154,7 +154,7 @@ export const updateAccountDetails = asyncHandler(async (req, res) => {
                 subjects: Array.isArray(subjects) ? subjects : subjects?.split(',').map(s => s.trim()).filter(Boolean)
             }
         },
-        { new: true }
+        { returnDocument: 'after' }
     ).select("-password -refreshToken");
 
     return res.status(200).json(

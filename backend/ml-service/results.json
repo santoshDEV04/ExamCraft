@@ -1,0 +1,28 @@
+{
+  "result": {
+    "topics": [
+      "Currency",
+      "Banking",
+      "Business Leaders",
+      "International Days",
+      "Government Schemes",
+      "Fashion",
+      "Sports",
+      "Ministers",
+      "Pharmaceutical Regulations",
+      "Research Centers",
+      "Conferences",
+      "Productivity",
+      "Science and Technology",
+      "Aviation"
+    ],
+    "difficulty": "Easy",
+    "estimated_time": "0.5 hours"
+  },
+  "foundHallucinations": [],
+  "foundKeywords": [
+    "Sports",
+    "Aviation"
+  ],
+  "passed": true
+}

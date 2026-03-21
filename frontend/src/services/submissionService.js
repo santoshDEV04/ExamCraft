@@ -50,6 +50,17 @@ const submissionService = {
     const response = await api.get('/analytics/recommendations');
     return response.data;
   },
+
+  // Study Plan
+  generateStudyPlan: async (data) => {
+    const response = await api.post('/analytics/generate-study-plan', data || {});
+    return response.data;
+  },
+
+  saveStudyPlan: async (studyPlan) => {
+    const response = await api.post('/analytics/study-plan', { studyPlan });
+    return response.data;
+  },
 };
 
 export default submissionService;

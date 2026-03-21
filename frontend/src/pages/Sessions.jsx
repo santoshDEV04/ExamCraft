@@ -49,7 +49,8 @@ export default function Sessions() {
 
   const filtered = sessions.filter(s => {
     const matchesSearch = s.topic.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'all' || s.status === filterType;
+    const isCompleted = s.status === 'completed' || (s.solvedQuestions?.length > 0 && s.solvedQuestions.length === s.totalQuestions);
+    const matchesFilter = filterType === 'all' || (filterType === 'completed' ? isCompleted : !isCompleted);
     return matchesSearch && matchesFilter;
   });
 
@@ -104,7 +105,7 @@ export default function Sessions() {
            <p className="text-sm font-bold uppercase tracking-[0.2em] text-gold">Loading Your Progress...</p>
         </div>
       ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           <AnimatePresence mode="popLayout">
             {filtered.map((s, i) => (
               <motion.div 
@@ -123,19 +124,24 @@ export default function Sessions() {
                       <Layers size={20} className="text-gold" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-silk font-bold text-sm sm:text-base leading-tight group-hover:text-gold transition-colors truncate">
+                      <h3 className="text-silk font-bold text-sm sm:text-base leading-tight group-hover:text-gold transition-colors line-clamp-2 sm:line-clamp-none break-words">
                         {s.topic}
                       </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[9px] font-bold text-silver-200/40 uppercase tracking-widest">{new Date(s.createdAt).toLocaleDateString()}</span>
-                        <div className="w-1 h-1 rounded-full bg-white/10" />
-                        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: getDifficultyColor(s.difficulty) }}>{s.difficulty}</span>
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-[9px] font-bold text-silver-200/50 uppercase tracking-widest">
+                          <Calendar size={10} /> {new Date(s.createdAt).toLocaleDateString()}
+                        </div>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-[9px] font-bold uppercase tracking-widest" style={{ color: getDifficultyColor(s.difficulty) }}>
+                          <Target size={10} /> {s.difficulty}
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className={`px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border shrink-0
-                    ${s.status === 'active' ? 'bg-info/10 text-info border-info/20' : 'bg-success/10 text-success border-success/20'}`}>
-                    {s.status}
+                  <div className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border shrink-0 shadow-sm
+                    ${(s.status === 'completed' || (s.solvedQuestions?.length > 0 && s.solvedQuestions.length === s.totalQuestions)) 
+                      ? 'bg-success/10 text-success border-success/20 shadow-success/5' 
+                      : 'bg-info/10 text-info border-info/20 shadow-info/5'}`}>
+                    {(s.status === 'completed' || (s.solvedQuestions?.length > 0 && s.solvedQuestions.length === s.totalQuestions)) ? 'completed' : 'active'}
                   </div>
                 </div>
 
@@ -170,23 +176,38 @@ export default function Sessions() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-col xs:flex-row gap-2 mt-auto">
-                  <button 
-                    onClick={() => navigate('/upload-material', { state: { sessionId: s._id, resume: true } })}
-                    className="flex-1 btn-gold py-2 sm:py-2.5 rounded-xl flex items-center justify-center gap-2 text-[10px] xs:text-xs group/btn active:scale-95 transition-all order-1 xs:order-none"
-                  >
-                    {(s.status === 'completed' && s.submissions?.length === s.totalQuestions) ? (
-                      <><BarChart2 size={14} /> View Details</>
+                <div className="flex flex-col sm:flex-row items-stretch gap-2 mt-auto pt-4 border-t border-white/5">
+                  <div className="flex flex-1 gap-2">
+                    {(s.status === 'completed' || (s.solvedQuestions?.length > 0 && s.solvedQuestions.length === s.totalQuestions)) ? (
+                      <>
+                        <button 
+                          onClick={() => navigate('/upload-material', { state: { sessionId: s._id, resume: true, showAnalysis: true } })}
+                          className="flex-1 btn-gold py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-gold/10"
+                        >
+                          <BarChart2 size={14} /> Analysis
+                        </button>
+                        <button 
+                          onClick={() => navigate('/upload-material', { state: { sessionId: s._id, resume: true } })}
+                          className="flex-1 bg-white/5 hover:bg-white/10 text-silver-200 py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest active:scale-95 transition-all border border-white/5"
+                        >
+                          <PlayCircle size={14} /> Resume
+                        </button>
+                      </>
                     ) : (
-                      <><PlayCircle size={14} className="group-hover/btn:rotate-12 transition-transform" /> Resume</>
+                      <button 
+                        onClick={() => navigate('/upload-material', { state: { sessionId: s._id, resume: true } })}
+                        className="flex-1 btn-gold py-3 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-gold/10"
+                      >
+                        <PlayCircle size={16} /> Resume Session
+                      </button>
                     )}
-                  </button>
+                  </div>
                   <button 
                     onClick={(e) => handleDelete(s._id, e)}
-                    className="p-2 sm:p-2.5 rounded-xl bg-danger/10 text-danger border border-danger/20 hover:bg-danger hover:text-white transition-all active:scale-90 flex items-center justify-center order-2 xs:order-none"
+                    className="h-10 sm:h-auto sm:aspect-square sm:w-12 rounded-xl bg-danger/10 text-danger border border-danger/20 hover:bg-danger hover:text-white transition-all active:scale-90 flex items-center justify-center shrink-0"
                     title="Delete Session"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </motion.div>

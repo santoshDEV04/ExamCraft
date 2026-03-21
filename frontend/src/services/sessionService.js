@@ -26,6 +26,11 @@ const sessionService = {
     toggleBookmark: async (id, questionId) => {
         const response = await axios.patch(`${API_URL}/sessions/${id}/bookmark`, { questionId }, { withCredentials: true });
         return response.data;
+    },
+    
+    viewSolution: async (id, questionId) => {
+        const response = await axios.patch(`${API_URL}/sessions/${id}/view-solution`, { questionId }, { withCredentials: true });
+        return response.data;
     }
 };
 

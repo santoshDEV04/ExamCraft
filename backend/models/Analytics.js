@@ -45,6 +45,14 @@ const AnalyticsSchema = new Schema(
                 score: Number,
                 topic: String
             }
+        ],
+        studyPlan: [
+            {
+                day: Number,
+                topic: String,
+                task: String,
+                isCompleted: { type: Boolean, default: false }
+            }
         ]
     },
     { timestamps: true }

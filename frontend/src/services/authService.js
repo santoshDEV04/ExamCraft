@@ -39,7 +39,7 @@ const authService = {
 
   // Fetch fresh user data from backend
   getMe: async () => {
-    const response = await api.get('/auth/me');
+    const response = await api.get('/auth/current-user');
     const { data } = response.data;
     if (data) {
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data));

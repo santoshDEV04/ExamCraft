@@ -277,15 +277,15 @@ async def extract_topics(request: MaterialRequest):
         {text_content}
         
         Specific Instructions:
-        1. Identify the 5-10 most important technical topics or concepts (e.g. 'Phases of a Compiler', 'Internet of Things', 'Lexical Analysis'). 
-        2. DO NOT hallucinate common terms like 'Exponent' or 'Multiplication' unless they are explicitly and clearly in the text.
+        1. Identify the 5-10 most important technical topics or concepts (e.g. 'Thermodynamics', 'Calculus', 'Organic Chemistry'). 
+        2. DO NOT hallucinate common terms or examples from your own training data unless they are explicitly and clearly in the text.
         3. Prioritize 'Proper Nouns' and academic 'Subject Headings'.
         4. If the text has handwritten list markers (1, 2, 3), treat those as top-priority keyword sources.
         5. Group findings into logical topics.
         
         Return ONLY valid JSON:
         {{
-            "topics": ["Specific Topic 1", "Specific Topic 2", "Broad Subject A", "Keyword 1"],
+            "topics": ["Specific Topic 1", "Specific Topic 2"],
             "difficulty": "beginner/intermediate/advanced",
             "estimated_time": "X hours"
         }}"""
@@ -293,7 +293,7 @@ async def extract_topics(request: MaterialRequest):
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a precise academic entity extractor. Output ONLY valid JSON."},
+                {"role": "system", "content": "You are a precise academic entity extractor. Output ONLY valid JSON based STICKLY on the provided text. Never suggest topics not present in the input."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,  # Lower temperature for more deterministic extraction
@@ -312,7 +312,7 @@ async def extract_topics(request: MaterialRequest):
         print(f"Topic extraction error: {e}")
         # Realistic fallbacks based on common academic subjects
         return {
-            "topics": ["Core Fundamentals", "Structural Analysis", "Optimization Techniques", "System Design"],
+            "topics": ["Core Fundamentals", "Structural Analysis", "General Knowledge", "Recent Findings"],
             "difficulty": "intermediate",
             "estimated_time": "2-4 hours"
         }
