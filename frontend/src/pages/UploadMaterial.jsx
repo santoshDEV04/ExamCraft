@@ -178,7 +178,7 @@ export default function UploadMaterial() {
         ...q,
         id: q._id || q.id || `gen-${idx}`,
         text: q.questionText,
-        time: diff === 'hard' ? 20 : diff === 'intermediate' ? 15 : 10
+        time: diff === 'hard' ? 9 : diff === 'intermediate' ? 6 : 3
       }));
       setQuestions(generated);
     } catch (err) {
@@ -205,7 +205,7 @@ export default function UploadMaterial() {
         ...q,
         id: q._id,
         text: q.questionText,
-        time: s.difficulty === 'hard' ? 20 : s.difficulty === 'intermediate' ? 15 : 10
+        time: s.difficulty === 'hard' ? 9 : s.difficulty === 'intermediate' ? 6 : 3
       }));
       setQuestions(mappedQs);
       
@@ -243,10 +243,31 @@ export default function UploadMaterial() {
 
   useEffect(() => {
     if (solveMode && timeLeft !== null && timeLeft > 0) {
-      timerRef.current = setInterval(() => setTimeLeft(p => p > 0 ? p - 1 : 0), 1000);
+      timerRef.current = setInterval(() => {
+        setTimeLeft(p => {
+          if (p <= 1) {
+            clearInterval(timerRef.current);
+            handleTimerExpired();
+            return 0;
+          }
+          return p - 1;
+        });
+      }, 1000);
       return () => clearInterval(timerRef.current);
     }
   }, [solveMode, timeLeft]);
+
+  const handleTimerExpired = async () => {
+    if (sessionId) {
+      try {
+        await sessionService.deleteSession(sessionId);
+      } catch (err) {
+        console.error("Failed to delete expired session", err);
+      }
+    }
+    alert("⏱️ Session Cancelled! The practice timer has expired. To maintain academic rigor, you must re-upload your material to start a fresh session.");
+    resetAll();
+  };
 
   const fmt = (s) => {
     if (s === null) return '--:--:--';
@@ -360,7 +381,7 @@ export default function UploadMaterial() {
         ...q,
         id: q._id || q.id || `gen-${idx}`,
         text: q.questionText,
-        time: diff === 'hard' ? 20 : diff === 'intermediate' ? 15 : 10
+        time: diff === 'hard' ? 9 : diff === 'intermediate' ? 6 : 3
       }));
       setQuestions(generated);
     } catch (err) {
@@ -383,7 +404,7 @@ export default function UploadMaterial() {
         ...q,
         id: q._id || q.id || `gen-more-${questions.length + idx}`,
         text: q.questionText,
-        time: difficulty === 'hard' ? 20 : difficulty === 'intermediate' ? 15 : 10
+        time: difficulty === 'hard' ? 9 : difficulty === 'intermediate' ? 6 : 3
       }));
       
       setQuestions(prev => {
